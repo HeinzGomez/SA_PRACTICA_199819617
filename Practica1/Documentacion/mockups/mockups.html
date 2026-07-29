@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YoUSAC — Plataforma Académica</title>
+<style>
+:root{--bg:#f5f7fb;--surface:#fff;--text:#172033;--muted:#687386;--primary:#3157d5;--primary2:#2446b8;--border:#e5e9f2;--success:#16855b;--danger:#c43d4b;--shadow:0 12px 35px rgba(23,32,51,.08)}
+*{box-sizing:border-box} body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--text)}
+button,input,select{font:inherit} button{cursor:pointer;border:0}.app{min-height:100vh;display:flex}
+.sidebar{width:245px;background:#111827;color:#fff;padding:22px 16px;position:fixed;inset:0 auto 0 0}.brand{font-size:20px;font-weight:800;padding:8px 10px 28px}.brand span{color:#7f9cff}
+.nav button{width:100%;text-align:left;background:transparent;color:#c8d0df;padding:12px 13px;border-radius:9px;margin:3px 0}.nav button:hover,.nav button.active{background:#24304a;color:#fff}.nav small{display:block;color:#77839a;text-transform:uppercase;font-size:10px;margin:20px 10px 7px}
+.main{margin-left:245px;width:calc(100% - 245px);padding:28px 34px}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:25px}.top h1{margin:0;font-size:26px}.user{display:flex;align-items:center;gap:10px;color:var(--muted)}.avatar{width:36px;height:36px;border-radius:50%;background:#dce5ff;color:#3157d5;display:grid;place-items:center;font-weight:700}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow)}.pad{padding:24px}.grid{display:grid;gap:18px}.grid3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.btn{padding:10px 16px;border-radius:9px;background:var(--primary);color:#fff;font-weight:650}.btn:hover{background:var(--primary2)}.btn.secondary{background:#edf1fb;color:var(--primary)}.btn.danger{background:#fff0f1;color:var(--danger)}
+label{font-size:13px;font-weight:650;display:block;margin:14px 0 7px}input,select{width:100%;padding:11px 12px;border:1px solid #d9dfeb;border-radius:9px;background:#fff;outline:none}input:focus,select:focus{border-color:#7890e7}
+.muted{color:var(--muted)}.stat{padding:20px}.stat b{display:block;font-size:28px;margin-top:7px}.course{overflow:hidden}.thumb{height:130px;background:linear-gradient(135deg,#dfe7ff,#eef2ff);display:grid;place-items:center;font-size:40px}.course .body{padding:17px}.tag{display:inline-block;padding:4px 8px;border-radius:99px;background:#edf1fb;color:#3157d5;font-size:11px;font-weight:700}.course h3{margin:10px 0 6px}.row{display:flex;align-items:center;justify-content:space-between;gap:15px}.progress{height:7px;background:#e9edf5;border-radius:10px;overflow:hidden}.progress i{display:block;height:100%;background:var(--primary)}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:13px;border-bottom:1px solid var(--border);font-size:13px}th{color:var(--muted);font-size:11px;text-transform:uppercase}
+.login{min-height:100vh;display:grid;place-items:center;background:linear-gradient(135deg,#111827,#263a78)}.loginbox{width:420px;background:#fff;border-radius:18px;padding:35px;box-shadow:0 25px 70px rgba(0,0,0,.25)}.loginbrand{text-align:center;font-size:24px;font-weight:800;margin-bottom:25px}.loginbrand span{color:var(--primary)}.notice{padding:12px;border-radius:9px;background:#f0f4ff;color:#44547a;font-size:12px;margin:15px 0}
+.player{background:#0d111b;border-radius:14px;overflow:hidden;color:white}.screen{height:360px;display:grid;place-items:center;background:radial-gradient(circle,#28354f,#0b0f18)}.play{width:70px;height:70px;border-radius:50%;background:#fff;color:#172033;display:grid;place-items:center;font-size:25px}.controls{padding:15px}.controls .progress{margin:8px 0 13px;background:#3b4352}.controls .progress i{background:#fff}.controlrow{display:flex;justify-content:space-between;color:#cfd5df;font-size:13px}
+.settings-list div{padding:17px 0;border-bottom:1px solid var(--border)}.settings-list div:last-child{border:0}.toggle{width:42px;height:23px;background:#cbd2df;border-radius:20px;padding:3px}.toggle i{display:block;width:17px;height:17px;border-radius:50%;background:#fff}.toggle.on{background:var(--primary)}.toggle.on i{margin-left:19px}
+.modalback{position:fixed;inset:0;background:rgba(10,15,25,.5);display:none;place-items:center}.modal{width:430px;background:#fff;border-radius:15px;padding:25px}.modalback.show{display:grid}
+@media(max-width:850px){.sidebar{width:190px}.main{margin-left:190px;width:calc(100% - 190px);padding:20px}.grid3{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="login" class="login">
+  <div class="loginbox">
+    <div class="loginbrand">Campus<span>Academy</span></div>
+    <h2>Inicio de sesión institucional</h2>
+    <p class="muted">Accede con tus credenciales institucionales.</p>
+    <label>Correo institucional</label><input id="email" placeholder="usuario@institucion.edu">
+    <label>Contraseña</label><input type="password" placeholder="••••••••">
+    <div class="notice">La autenticación será validada mediante el servicio institucional.</div>
+    <button class="btn" style="width:100%" onclick="enter()">Ingresar</button>
+    <p class="muted" style="text-align:center;font-size:12px;margin-top:18px">¿Problemas para ingresar? Contacta al administrador.</p>
+  </div>
+</div>
+
+<div id="app" class="app" style="display:none">
+<aside class="sidebar">
+  <div class="brand">Campus<span>Academy</span></div>
+  <div class="nav">
+    <small>Plataforma</small>
+    <button data-page="catalogo" onclick="show('catalogo')">▦ &nbsp; Catálogo</button>
+    <button data-page="reproductor" onclick="show('reproductor')">▶ &nbsp; Reproductor</button>
+    <button data-page="asignaciones" onclick="show('asignaciones')">☷ &nbsp; Asignaciones</button>
+    <small>Administración</small>
+    <button data-page="configuracion" onclick="show('configuracion')">⚙ &nbsp; Configuración</button>
+    <button data-page="admin" onclick="show('admin')">▣ &nbsp; Panel Admin</button>
+  </div>
+  <div style="position:absolute;bottom:22px;left:16px;right:16px">
+    <button onclick="logout()" style="width:100%;background:#24304a;color:#fff;padding:11px;border-radius:9px">Cerrar sesión</button>
+  </div>
+</aside>
+<main class="main">
+  <div class="top"><h1 id="title">Catálogo académico</h1><div class="user"><span>Heinz Gómez</span><div class="avatar">HG</div></div></div>
+  <section id="content"></section>
+</main>
+</div>
+
+<div id="modal" class="modalback" onclick="if(event.target===this)closeModal()">
+ <div class="modal"><div class="row"><h2 id="modalTitle" style="margin:0">Asignar curso</h2><button onclick="closeModal()">✕</button></div><label>Usuario</label><select><option>María López — mlopez</option><option>Carlos Pérez — cperez</option></select><label>Curso</label><select><option>Arquitectura de Microservicios</option><option>Seguridad de APIs</option></select><label>Fecha límite</label><input type="date"><button class="btn" style="margin-top:18px;width:100%" onclick="closeModal()">Confirmar asignación</button></div>
+</div>
+
+<script>
+const pages={
+catalogo:{title:"Catálogo académico",html:`
+<div class="row" style="margin-bottom:18px"><div><p class="muted" style="margin:0">Explora cursos y clases disponibles.</p></div><div style="width:300px"><input id="search" oninput="filterCourses()" placeholder="Buscar cursos..."></div></div>
+<div id="courses" class="grid grid3">
+${course("Arquitectura de Microservicios","Arquitectura","12 clases","▶")}
+${course("Diseño de APIs con gRPC","Backend","8 clases","⌁")}
+${course("Seguridad Aplicada","Seguridad","10 clases","◆")}
+${course("Patrones de Integración","Arquitectura","7 clases","◇")}
+${course("Bases de Datos Avanzadas","Datos","9 clases","▤")}
+${course("Observabilidad","DevOps","6 clases","◉")}
+</div>`},
+reproductor:{title:"Reproductor de clases",html:`
+<div class="grid grid2">
+<div class="player"><div class="screen"><div class="play" onclick="this.innerHTML=this.innerHTML==='▶'?'❚❚':'▶'">▶</div></div><div class="controls"><div class="progress"><i style="width:42%"></i></div><div class="controlrow"><span>14:32 / 34:20</span><span>⚙ &nbsp; ⛶</span></div></div></div>
+<div class="card pad"><span class="tag">Arquitectura</span><h2>Introducción a Microservicios</h2><p class="muted">Clase 3 de 12</p><div style="margin:22px 0"><div class="row"><span>Progreso</span><b>42%</b></div><div class="progress" style="margin-top:8px"><i style="width:42%"></i></div></div><h3>Contenido de la clase</h3><p class="muted">Conceptos fundamentales, límites de contexto y comunicación entre servicios.</p><button class="btn" onclick="alert('Progreso guardado')">Guardar progreso</button></div>
+</div>`},
+asignaciones:{title:"Gestión de asignaciones y permisos",html:`
+<div class="grid grid3" style="margin-bottom:18px">
+<div class="card stat"><span class="muted">Usuarios</span><b>248</b></div><div class="card stat"><span class="muted">Asignaciones activas</span><b>183</b></div><div class="card stat"><span class="muted">Roles</span><b>6</b></div>
+</div>
+<div class="card pad"><div class="row"><h2 style="margin:0">Asignaciones</h2><button class="btn" onclick="openModal()">+ Nueva asignación</button></div><table style="margin-top:15px"><thead><tr><th>Usuario</th><th>Curso</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody>
+<tr><td>María López</td><td>Microservicios</td><td>Estudiante</td><td><span class="tag">Activa</span></td><td>⋮</td></tr>
+<tr><td>Carlos Pérez</td><td>Seguridad APIs</td><td>Docente</td><td><span class="tag">Activa</span></td><td>⋮</td></tr>
+<tr><td>Ana Castillo</td><td>gRPC</td><td>Estudiante</td><td><span class="tag">Activa</span></td><td>⋮</td></tr>
+</tbody></table></div>`},
+configuracion:{title:"Configuración",html:`
+<div class="grid grid2">
+<div class="card pad"><h2>Perfil institucional</h2><label>Nombre</label><input value="Heinz Gómez"><label>Correo</label><input value="heinz@institucion.edu"><label>Código institucional</label><input value="HG-00192"><button class="btn" style="margin-top:18px">Guardar cambios</button></div>
+<div class="card pad"><h2>Preferencias</h2><div class="settings-list"><div class="row"><span><b>Notificaciones</b><br><small class="muted">Recibir avisos académicos</small></span><div class="toggle on"><i></i></div></div><div class="row"><span><b>Continuar reproducción</b><br><small class="muted">Retomar clases desde el último punto</small></span><div class="toggle on"><i></i></div></div><div class="row"><span><b>Modo compacto</b><br><small class="muted">Reducir espacios de la interfaz</small></span><div class="toggle"><i></i></div></div></div></div>
+</div>`},
+admin:{title:"Panel administrativo",html:`
+<div class="grid grid3" style="margin-bottom:18px">
+<div class="card stat"><span class="muted">Usuarios registrados</span><b>1,284</b></div><div class="card stat"><span class="muted">Cursos publicados</span><b>74</b></div><div class="card stat"><span class="muted">Reproducciones hoy</span><b>3,642</b></div>
+</div>
+<div class="grid grid2"><div class="card pad"><h2>Actividad reciente</h2><table><tr><td>Nuevo curso publicado</td><td class="muted">Hace 8 min</td></tr><tr><td>Usuario asignado a curso</td><td class="muted">Hace 21 min</td></tr><tr><td>Rol actualizado</td><td class="muted">Hace 43 min</td></tr><tr><td>Contenido actualizado</td><td class="muted">Hace 1 h</td></tr></table></div>
+<div class="card pad"><h2>Salud de servicios</h2><div style="padding:14px 0;border-bottom:1px solid var(--border)">Authentication Service <b style="float:right;color:var(--success)">● Operativo</b></div><div style="padding:14px 0;border-bottom:1px solid var(--border)">Academic Service <b style="float:right;color:var(--success)">● Operativo</b></div><div style="padding:14px 0;border-bottom:1px solid var(--border)">Playback Service <b style="float:right;color:var(--success)">● Operativo</b></div><div style="padding:14px 0">gRPC Gateway <b style="float:right;color:var(--success)">● Operativo</b></div></div></div>`}
+};
+function course(n,t,c,icon){return `<div class="card course" data-name="${n.toLowerCase()}"><div class="thumb">${icon}</div><div class="body"><span class="tag">${t}</span><h3>${n}</h3><p class="muted">${c} · Nivel intermedio</p><div class="row"><small class="muted">Progreso 35%</small><button class="btn secondary" onclick="show('reproductor')">Ver curso</button></div></div></div>`}
+function enter(){document.getElementById('login').style.display='none';document.getElementById('app').style.display='flex';show('catalogo')}
+function logout(){document.getElementById('app').style.display='none';document.getElementById('login').style.display='grid'}
+function show(p){document.getElementById('title').textContent=pages[p].title;document.getElementById('content').innerHTML=pages[p].html;document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p))}
+function filterCourses(){let q=document.getElementById('search').value.toLowerCase();document.querySelectorAll('.course').forEach(c=>c.style.display=c.dataset.name.includes(q)?'block':'none')}
+function openModal(){document.getElementById('modal').classList.add('show')}
+function closeModal(){document.getElementById('modal').classList.remove('show')}
+</script>
+</body>
+</html>
