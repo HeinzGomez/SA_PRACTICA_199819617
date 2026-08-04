@@ -1,0 +1,137 @@
+/*
+=========================================================
+ 1. TRIGGER: Actualización automática de fecha modificada
+ Tabla afectada:
+    sesion
+
+ Función:
+    Actualiza automáticamente el campo updated_at
+    cada vez que el registro sea modificado.
+=========================================================
+*/
+
+
+CREATE OR REPLACE FUNCTION trg_fn_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS
+$$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$;
+
+
+
+DROP TRIGGER IF EXISTS trg_sesion_updated_at
+ON sesion;
+
+CREATE TRIGGER trg_sesion_updated_at
+BEFORE UPDATE
+ON sesion
+FOR EACH ROW
+EXECUTE FUNCTION trg_fn_updated_at();
+
+
+
+/*
+=========================================================
+ 2. TRIGGER: Protección contra eliminación física
+ Tabla afectada:
+    usuario
+
+ Descripción:
+    Evita eliminar usuarios físicamente.
+    La plataforma utilizará Soft Delete.
+=========================================================
+*/
+
+
+CREATE OR REPLACE FUNCTION trg_fn_prevenir_delete_usuario()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS
+$$
+BEGIN
+    RAISE EXCEPTION
+    'Los usuarios no pueden eliminarse físicamente. Utilice Soft Delete.';
+END;
+$$;
+
+
+
+DROP TRIGGER IF EXISTS trg_usuario_delete
+ON usuario;
+
+CREATE TRIGGER trg_usuario_delete
+BEFORE DELETE
+ON usuario
+FOR EACH ROW
+EXECUTE FUNCTION trg_fn_prevenir_delete_usuario();
+
+
+
+/*
+=========================================================
+ 3. TABLA DE AUDITORÍA DE SESIONES
+ Descripción:
+    Almacena eventos relacionados con creación
+    de sesiones de usuario.
+=========================================================
+*/
+
+
+CREATE TABLE IF NOT EXISTS auditoria_sesion
+(
+    id SERIAL PRIMARY KEY,
+    usuario_id INTEGER NOT NULL,
+    evento VARCHAR(100) NOT NULL,
+    fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+
+/*
+=========================================================
+ 4. TRIGGER: Registro de creación de sesión
+ Tabla afectada:
+    sesion
+
+ Descripción:
+    Registra cada nueva sesión creada.
+=========================================================
+*/
+
+
+CREATE OR REPLACE FUNCTION trg_fn_log_sesion()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS
+$$
+BEGIN
+    INSERT INTO auditoria_sesion
+    (
+        usuario_id,
+        evento
+    )
+    VALUES
+    (
+        NEW.usuario_id,
+        'Inicio de sesión'
+    );
+    RETURN NEW;
+END;
+$$;
+
+
+
+DROP TRIGGER IF EXISTS trg_sesion_insert
+ON sesion;
+
+CREATE TRIGGER trg_sesion_insert
+AFTER INSERT
+ON sesion
+FOR EACH ROW
+EXECUTE FUNCTION trg_fn_log_sesion();
+
