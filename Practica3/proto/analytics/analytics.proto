@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+package youssac.analytics.v1;
+
+option go_package = "yousac/proto/analytics;analyticsv1";
+
+import "google/protobuf/timestamp.proto";
+
+// analytics-service (Python)
+// Dominio: analítica académica, tendencias, recomendaciones, caché (Redis),
+// carga masiva CSV y notificaciones institucionales por correo.
+service AnalyticsService {
+  // Analítica / tendencias (respaldadas por caché Redis con TTL)
+  rpc GetMostViewedThisWeek(GetMostViewedRequest) returns (RankingResponse);
+  rpc GetExamSeasonTrends(GetTrendsRequest) returns (RankingResponse);
+  rpc GetTopRatedRecordings(GetTopRatedRequest) returns (RankingResponse);
+
+  // Recomendaciones
+  rpc GetRecommendationScore(RecommendationRequest) returns (RecommendationResponse);
+
+  // Ingesta masiva
+  rpc BulkIngestCsv(BulkIngestRequest) returns (BulkIngestResponse);
+
+  // Notificaciones institucionales por correo
+  rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse);
+}
+
+message GetMostViewedRequest {
+  string semester = 1;
+}
+
+message GetTrendsRequest {
+  string semester = 1;
+}
+
+message GetTopRatedRequest {
+  string course_id = 1;
+}
+
+message RankingItem {
+  string recording_id = 1;
+  string title = 2;
+  int64 view_count = 3;
+  double score = 4;
+}
+
+message RankingResponse {
+  repeated RankingItem items = 1;
+  bool from_cache = 2;
+  google.protobuf.Timestamp generated_at = 3;
+}
+
+message RecommendationRequest {
+  string user_id = 1;
+  string recording_id = 2;
+}
+
+message RecommendationResponse {
+  double recommendation_percentage = 1;
+  string rationale = 2;
+}
+
+message BulkIngestRequest {
+  bytes csv_content = 1;
+  string dataset = 2; // e.g. "views_history" | "ratings"
+}
+
+message BulkIngestResponse {
+  bool success = 1;
+  int32 rows_processed = 2;
+  repeated string errors = 3;
+}
+
+enum NotificationType {
+  NOTIFICATION_UNSPECIFIED = 0;
+  NOTIFICATION_REGISTRATION_CONFIRMATION = 1;
+  NOTIFICATION_NEW_RECORDING_PUBLISHED = 2;
+  NOTIFICATION_SYSTEM_ALERT = 3;
+}
+
+message SendNotificationRequest {
+  string institutional_email = 1;
+  NotificationType type = 2;
+  map<string, string> template_data = 3;
+}
+
+message SendNotificationResponse {
+  bool queued = 1;
+  string message_id = 2;
+}

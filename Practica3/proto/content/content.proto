@@ -1,0 +1,162 @@
+syntax = "proto3";
+
+package youssac.content.v1;
+
+option go_package = "yousac/proto/content;contentv1";
+
+import "google/protobuf/timestamp.proto";
+
+// content-service (Go)
+// Dominio: catálogo/búsqueda/detalle de clases grabadas, ingesta de
+// reproducción de alta concurrencia, checkpoints e historial reciente.
+//
+// Práctica 3 agrega la ingesta masiva por CSV del catálogo de grabaciones
+// (invocando sp_ingest_recording por fila, dentro de una transacción) y
+// clampa la paginación de SearchRecordings a un máximo de 10 resultados
+// por página, incluso si el cliente solicita más.
+service ContentService {
+  // Catálogo, búsqueda y detalle
+  rpc SearchRecordings(SearchRecordingsRequest) returns (SearchRecordingsResponse);
+  rpc GetRecordingDetail(GetRecordingDetailRequest) returns (RecordingDetail);
+  rpc IngestRecording(IngestRecordingRequest) returns (IngestRecordingResponse);
+  rpc BulkIngestRecordingsCsv(BulkIngestCsvRequest) returns (BulkIngestCsvResponse);
+
+  // Reproducción / checkpoints (alta concurrencia)
+  rpc RegisterPlaybackEvent(PlaybackEventRequest) returns (PlaybackEventResponse);
+  rpc SaveCheckpoint(SaveCheckpointRequest) returns (SaveCheckpointResponse);
+  rpc GetLastCheckpoint(GetLastCheckpointRequest) returns (CheckpointResponse);
+  rpc GetRecentHistory(GetRecentHistoryRequest) returns (RecentHistoryResponse);
+}
+
+message SearchRecordingsRequest {
+  string semester = 1;
+  string school = 2;
+  string course_id = 3;
+  string professor_id = 4;
+  repeated string tags = 5;
+  string free_text = 6;
+  int32 page = 7;
+  int32 page_size = 8; // el servidor lo clampa a un máximo de 10
+}
+
+message RecordingSummary {
+  string recording_id = 1;
+  string title = 2;
+  string course_id = 3;
+  string semester = 4;
+  google.protobuf.Timestamp recorded_at = 5;
+  repeated string tags = 6;
+  string school = 7;
+}
+
+message SearchRecordingsResponse {
+  repeated RecordingSummary results = 1;
+  int32 total = 2;
+}
+
+message GetRecordingDetailRequest {
+  string recording_id = 1;
+}
+
+message RecordingDetail {
+  string recording_id = 1;
+  string title = 2;
+  string course_id = 3;
+  string semester = 4;
+  string unit = 5;
+  string syllabus_url = 6;
+  string video_url = 7;
+  google.protobuf.Timestamp recorded_at = 8;
+  repeated string professors = 9;
+  repeated string auxiliaries = 10;
+  repeated string tags = 11;
+  string school = 12;
+}
+
+message IngestRecordingRequest {
+  string title = 1;
+  string course_id = 2;
+  string semester = 3;
+  string unit = 4;
+  string video_url = 5;
+  repeated string professors = 6;
+  repeated string tags = 7;
+  string school = 8;
+}
+
+message IngestRecordingResponse {
+  bool success = 1;
+  string recording_id = 2;
+  string error_message = 3;
+}
+
+// Ingesta masiva (Práctica 3): el CSV se sube por el Panel de
+// Administración vía API Gateway y llega aquí como bytes crudos. Cada
+// fila se inserta invocando sp_ingest_recording dentro de una única
+// transacción por fila (todo o nada por fila; errores individuales no
+// abortan el resto del archivo, se reportan en "errors").
+message BulkIngestCsvRequest {
+  string actor_user_id = 1;
+  bytes csv_content = 2;
+}
+
+message BulkIngestCsvResponse {
+  bool success = 1;
+  int32 rows_processed = 2;
+  int32 rows_failed = 3;
+  repeated string errors = 4;
+}
+
+message PlaybackEventRequest {
+  string user_id = 1;
+  string recording_id = 2;
+  string event_type = 3; // play | pause | seek | complete
+  int32 position_seconds = 4;
+}
+
+message PlaybackEventResponse {
+  bool accepted = 1;
+}
+
+message SaveCheckpointRequest {
+  string user_id = 1;
+  string recording_id = 2;
+  int32 position_seconds = 3;
+  string unit = 4;
+  string topic = 5;
+}
+
+message SaveCheckpointResponse {
+  bool success = 1;
+}
+
+message GetLastCheckpointRequest {
+  string user_id = 1;
+  string recording_id = 2;
+}
+
+message CheckpointResponse {
+  int32 position_seconds = 1;
+  string unit = 2;
+  string topic = 3;
+  google.protobuf.Timestamp updated_at = 4;
+}
+
+message GetRecentHistoryRequest {
+  string user_id = 1;
+  int32 limit = 2;
+}
+
+message HistoryItem {
+  string recording_id = 1;
+  string title = 2;
+  string course_id = 3;
+  string unit = 4;
+  string topic = 5;
+  int32 position_seconds = 6;
+  google.protobuf.Timestamp last_watched_at = 7;
+}
+
+message RecentHistoryResponse {
+  repeated HistoryItem items = 1;
+}

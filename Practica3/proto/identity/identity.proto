@@ -1,0 +1,242 @@
+syntax = "proto3";
+
+package youssac.identity.v1;
+
+option go_package = "yousac/proto/identity;identityv1";
+
+import "google/protobuf/timestamp.proto";
+
+// identity-service (TypeScript)
+// Dominio: autenticación institucional, sesiones, multiperfil, RBAC,
+// inscripción y catálogo de cursos.
+//
+// Práctica 3 agrega el Panel Web de Administración (RBAC): CRUD de
+// Semestres/Escuelas/Cursos/Docentes y asignación académica
+// docente-curso, todo respaldado por Procedimientos Almacenados.
+service IdentityService {
+  // Autenticación
+  rpc ValidateCredentials(ValidateCredentialsRequest) returns (ValidateCredentialsResponse);
+  rpc ValidateSession(ValidateSessionRequest) returns (ValidateSessionResponse);
+  rpc RegisterInstitutionalUser(RegisterUserRequest) returns (RegisterUserResponse);
+
+  // Perfiles y roles
+  rpc GetUserProfile(GetUserProfileRequest) returns (UserProfile);
+  rpc ListUserRoles(GetUserProfileRequest) returns (ListRolesResponse);
+
+  // Inscripción / permisos
+  rpc GetEnrolledCourses(GetEnrolledCoursesRequest) returns (ListCoursesResponse);
+  rpc VerifyCourseAccess(VerifyCourseAccessRequest) returns (VerifyCourseAccessResponse);
+
+  // Catálogo de cursos (metadatos académicos, no el contenido audiovisual)
+  rpc ListCourses(ListCoursesFilter) returns (ListCoursesResponse);
+
+  // --- Panel de Administración (RBAC): Escuelas/Áreas ---
+  rpc ListSchools(Empty) returns (ListSchoolsResponse);
+  rpc UpsertSchool(UpsertSchoolRequest) returns (School);
+  rpc DeleteSchool(DeleteEntityRequest) returns (DeleteEntityResponse);
+
+  // --- Panel de Administración (RBAC): Semestres ---
+  rpc ListSemesters(Empty) returns (ListSemestersResponse);
+  rpc UpsertSemester(UpsertSemesterRequest) returns (Semester);
+  rpc DeleteSemester(DeleteEntityRequest) returns (DeleteEntityResponse);
+
+  // --- Panel de Administración (RBAC): Cursos ---
+  rpc UpsertCourse(UpsertCourseRequest) returns (Course);
+  rpc DeleteCourse(DeleteEntityRequest) returns (DeleteEntityResponse);
+  rpc AssignProfessorToCourse(AssignProfessorRequest) returns (DeleteEntityResponse);
+
+  // --- Panel de Administración (RBAC): Docentes ---
+  rpc ListProfessors(Empty) returns (ListProfessorsResponse);
+  rpc CreateProfessor(CreateProfessorRequest) returns (RegisterUserResponse);
+  rpc SetProfessorActive(SetProfessorActiveRequest) returns (DeleteEntityResponse);
+}
+
+message Empty {}
+
+message DeleteEntityRequest {
+  string actor_user_id = 1;
+  string entity_id = 2;
+}
+
+message DeleteEntityResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message School {
+  string school_id = 1;
+  string name = 2;
+  bool is_active = 3;
+}
+
+message ListSchoolsResponse {
+  repeated School schools = 1;
+}
+
+message UpsertSchoolRequest {
+  string actor_user_id = 1;
+  string school_id = 2; // vacio = crear
+  string name = 3;
+}
+
+message Semester {
+  string semester_id = 1;
+  string code = 2;
+  string label = 3;
+  string starts_on = 4; // YYYY-MM-DD
+  string ends_on = 5;   // YYYY-MM-DD
+  bool is_active = 6;
+}
+
+message ListSemestersResponse {
+  repeated Semester semesters = 1;
+}
+
+message UpsertSemesterRequest {
+  string actor_user_id = 1;
+  string semester_id = 2; // vacio = crear
+  string code = 3;
+  string label = 4;
+  string starts_on = 5;
+  string ends_on = 6;
+}
+
+message UpsertCourseRequest {
+  string actor_user_id = 1;
+  string course_id = 2; // vacio = crear
+  string name = 3;
+  string school_id = 4;
+  string semester_id = 5;
+}
+
+message AssignProfessorRequest {
+  string actor_user_id = 1;
+  string course_id = 2;
+  string professor_id = 3;
+}
+
+message Professor {
+  string user_id = 1;
+  string full_name = 2;
+  string institutional_email = 3;
+  bool is_active = 4;
+  Role role = 5;
+}
+
+message ListProfessorsResponse {
+  repeated Professor professors = 1;
+}
+
+message CreateProfessorRequest {
+  string actor_user_id = 1;
+  string institutional_email = 2;
+  string full_name = 3;
+  string password = 4;
+  string carnet = 5;
+  Role role = 6; // ROLE_CATEDRATICO | ROLE_AUXILIAR
+}
+
+message SetProfessorActiveRequest {
+  string actor_user_id = 1;
+  string professor_id = 2;
+  bool is_active = 3;
+}
+
+enum Role {
+  ROLE_UNSPECIFIED = 0;
+  ROLE_ESTUDIANTE = 1;
+  ROLE_CATEDRATICO = 2;
+  ROLE_AUXILIAR = 3;
+  ROLE_ADMIN = 4;
+}
+
+message ValidateCredentialsRequest {
+  string institutional_email = 1;
+  string password = 2;
+}
+
+message ValidateCredentialsResponse {
+  bool valid = 1;
+  string user_id = 2;
+  repeated Role roles = 3;
+  string error_message = 4;
+}
+
+message ValidateSessionRequest {
+  string jwt = 1;
+}
+
+message ValidateSessionResponse {
+  bool valid = 1;
+  string user_id = 2;
+  repeated Role roles = 3;
+  google.protobuf.Timestamp expires_at = 4;
+}
+
+message RegisterUserRequest {
+  string institutional_email = 1;
+  string full_name = 2;
+  string password = 3;
+  Role initial_role = 4;
+  string carnet = 5;
+}
+
+message RegisterUserResponse {
+  bool success = 1;
+  string user_id = 2;
+  string error_message = 3;
+}
+
+message GetUserProfileRequest {
+  string user_id = 1;
+}
+
+message UserProfile {
+  string user_id = 1;
+  string institutional_email = 2;
+  string full_name = 3;
+  string carnet = 4;
+  repeated Role roles = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message ListRolesResponse {
+  repeated Role roles = 1;
+}
+
+message GetEnrolledCoursesRequest {
+  string user_id = 1;
+  string semester = 2;
+}
+
+message VerifyCourseAccessRequest {
+  string user_id = 1;
+  string course_id = 2;
+}
+
+message VerifyCourseAccessResponse {
+  bool has_access = 1;
+  string reason = 2;
+}
+
+message ListCoursesFilter {
+  string semester = 1;
+  string school = 2;
+  string professor_id = 3;
+}
+
+message Course {
+  string course_id = 1;
+  string name = 2;
+  string school = 3;      // nombre resuelto (v_course_catalog.school)
+  string semester = 4;    // codigo resuelto (v_course_catalog.semester)
+  string professor_id = 5;
+  string school_id = 6;
+  string semester_id = 7;
+  string professor_name = 8;
+  bool is_active = 9;
+}
+
+message ListCoursesResponse {
+  repeated Course courses = 1;
+}

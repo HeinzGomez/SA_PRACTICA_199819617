@@ -1,0 +1,195 @@
+name: yousac-local
+
+# =====================================================================
+# Entorno LOCAL de desarrollo. Levanta toda la topologia de YoUSAC en la
+# maquina local: 3 bases de datos (Database per Microservice), Redis,
+# los 3 microservicios de dominio (Go/TS/Python) comunicados via gRPC,
+# el API Gateway (unico punto de entrada) y el cliente web (Vite dev
+# server con hot-reload).
+#
+# Fuente unica de verdad para credenciales de BD/Redis: el archivo .env
+# en la raiz del repo (ver .env.example). Los .env de cada servicio
+# (services/*/.env, api-gateway/.env) aportan el resto de configuracion
+# (puertos gRPC, JWT, SMTP, etc.) pero NO las credenciales de conexion a
+# base de datos, para evitar que ambos archivos queden desincronizados.
+# =====================================================================
+
+services:
+  # -------------------------------------------------------------
+  # Bases de datos (una por microservicio)
+  # -------------------------------------------------------------
+  identity-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${IDENTITY_DB_NAME:-identity_db}
+      POSTGRES_USER: ${IDENTITY_DB_USER:-identity_user}
+      POSTGRES_PASSWORD: ${IDENTITY_DB_PASSWORD:-identity_pass}
+    volumes:
+      - identity_db_data:/var/lib/postgresql/data
+      - ./services/identity-service/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${IDENTITY_DB_USER:-identity_user} -d ${IDENTITY_DB_NAME:-identity_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [yousac-net]
+
+  content-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${CONTENT_DB_NAME:-content_db}
+      POSTGRES_USER: ${CONTENT_DB_USER:-content_user}
+      POSTGRES_PASSWORD: ${CONTENT_DB_PASSWORD:-content_pass}
+    volumes:
+      - content_db_data:/var/lib/postgresql/data
+      - ./services/content-service/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${CONTENT_DB_USER:-content_user} -d ${CONTENT_DB_NAME:-content_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [yousac-net]
+
+  analytics-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${ANALYTICS_DB_NAME:-analytics_db}
+      POSTGRES_USER: ${ANALYTICS_DB_USER:-analytics_user}
+      POSTGRES_PASSWORD: ${ANALYTICS_DB_PASSWORD:-analytics_pass}
+    volumes:
+      - analytics_db_data:/var/lib/postgresql/data
+      - ./services/analytics-service/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ANALYTICS_DB_USER:-analytics_user} -d ${ANALYTICS_DB_NAME:-analytics_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [yousac-net]
+
+  # -------------------------------------------------------------
+  # Cache (obligatorio para analytics-service)
+  # -------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [yousac-net]
+
+  # -------------------------------------------------------------
+  # Microservicios de dominio (polyglot, expuestos SOLO via gRPC)
+  # -------------------------------------------------------------
+  identity-service:
+    build:
+      context: .
+      dockerfile: services/identity-service/Dockerfile
+    restart: unless-stopped
+    env_file: [services/identity-service/.env]
+    environment:
+      DB_HOST: identity-db
+      DB_PORT: 5432
+      DB_NAME: ${IDENTITY_DB_NAME:-identity_db}
+      DB_USER: ${IDENTITY_DB_USER:-identity_user}
+      DB_PASSWORD: ${IDENTITY_DB_PASSWORD:-identity_pass}
+    depends_on:
+      identity-db:
+        condition: service_healthy
+    networks: [yousac-net]
+
+  content-service:
+    build:
+      context: .
+      dockerfile: services/content-service/Dockerfile
+    restart: unless-stopped
+    env_file: [services/content-service/.env]
+    environment:
+      DB_HOST: content-db
+      DB_PORT: 5432
+      DB_NAME: ${CONTENT_DB_NAME:-content_db}
+      DB_USER: ${CONTENT_DB_USER:-content_user}
+      DB_PASSWORD: ${CONTENT_DB_PASSWORD:-content_pass}
+    depends_on:
+      content-db:
+        condition: service_healthy
+    networks: [yousac-net]
+
+  analytics-service:
+    build:
+      context: .
+      dockerfile: services/analytics-service/Dockerfile
+    restart: unless-stopped
+    env_file: [services/analytics-service/.env]
+    environment:
+      DB_HOST: analytics-db
+      DB_PORT: 5432
+      DB_NAME: ${ANALYTICS_DB_NAME:-analytics_db}
+      DB_USER: ${ANALYTICS_DB_USER:-analytics_user}
+      DB_PASSWORD: ${ANALYTICS_DB_PASSWORD:-analytics_pass}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    depends_on:
+      analytics-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [yousac-net]
+
+  # -------------------------------------------------------------
+  # API Gateway (unico punto de entrada north-south)
+  # -------------------------------------------------------------
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    restart: unless-stopped
+    env_file: [api-gateway/.env]
+    environment:
+      IDENTITY_SERVICE_GRPC_URL: identity-service:50051
+      CONTENT_SERVICE_GRPC_URL: content-service:50052
+      ANALYTICS_SERVICE_GRPC_URL: analytics-service:50053
+    ports:
+      - "8080:8080"
+    depends_on: [identity-service, content-service, analytics-service]
+    networks: [yousac-net]
+
+  # -------------------------------------------------------------
+  # Cliente web (Vite dev server, hot-reload)
+  # -------------------------------------------------------------
+  web-client:
+    build:
+      context: .
+      dockerfile: web-client/Dockerfile
+      target: dev
+    restart: unless-stopped
+    env_file: [web-client/.env]
+    volumes:
+      - ./web-client:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on: [api-gateway]
+    networks: [yousac-net]
+
+networks:
+  yousac-net:
+    driver: bridge
+
+volumes:
+  identity_db_data:
+  content_db_data:
+  analytics_db_data:
