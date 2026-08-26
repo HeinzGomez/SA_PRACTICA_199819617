@@ -1,0 +1,18 @@
+@startsalt
+' HeinzGomez - Mockup: Modal de gestion de capitulos (panel admin)
+{
+  {* Capitulos de la clase                              [ Cerrar ] }
+  "Clase: Sistemas Operativos 1 - Introduccion (duracion 1:30:00)"
+  {+
+    "Titulo del capitulo" | "MM:SS" | [ Agregar ]
+  }
+  --
+  {#
+    Marca | Titulo | Accion
+    00:00 | Introduccion | [Editar] [Eliminar]
+    12:30 | Fundamentos teoricos | [Editar] [Eliminar]
+    35:10 | Ejemplo en codigo | [Editar] [Eliminar]
+    55:00 | Resolucion de dudas | [Editar] [Eliminar]
+  }
+}
+@endsalt

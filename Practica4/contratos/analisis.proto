@@ -1,0 +1,403 @@
+syntax = "proto3";
+
+package analisis;
+
+option go_package = "proto/analisis";
+option java_package = "proto.analisis";
+
+// Servicio principal de analitica, tendencias y recomendaciones
+service AnalisisService {
+  // Espejo local del catalogo (sincronizado con grabaciones)
+  rpc CrearUnidad(CrearUnidadRequest) returns (CrearUnidadResponse);
+  rpc EditarUnidad(EditarUnidadRequest) returns (EditarUnidadResponse);
+  rpc EliminarUnidad(EliminarUnidadRequest) returns (EliminarUnidadResponse);
+  rpc ConsultarUnidades(ConsultarUnidadesRequest) returns (ConsultarUnidadesResponse);
+
+  rpc CrearTema(CrearTemaRequest) returns (CrearTemaResponse);
+  rpc EditarTema(EditarTemaRequest) returns (EditarTemaResponse);
+  rpc EliminarTema(EliminarTemaRequest) returns (EliminarTemaResponse);
+  rpc ConsultarTemas(ConsultarTemasRequest) returns (ConsultarTemasResponse);
+
+  rpc CrearClaseGrabada(CrearClaseGrabadaRequest) returns (CrearClaseGrabadaResponse);
+  rpc EditarClaseGrabada(EditarClaseGrabadaRequest) returns (EditarClaseGrabadaResponse);
+  rpc EliminarClaseGrabada(EliminarClaseGrabadaRequest) returns (EliminarClaseGrabadaResponse);
+  rpc ConsultarCatalogoClases(ConsultarCatalogoClasesRequest) returns (ConsultarCatalogoClasesResponse);
+
+  rpc AsignarTemaClaseGrabada(AsignarTemaClaseGrabadaRequest) returns (AsignarTemaClaseGrabadaResponse);
+  rpc DesasignarTemaClaseGrabada(DesasignarTemaClaseGrabadaRequest) returns (DesasignarTemaClaseGrabadaResponse);
+
+  rpc CargaMasivaClases(BatchCrearClaseRequest) returns (BatchCrearClaseResponse);
+
+  // Registro de acciones de usuarios
+  rpc VisualizarClase(VisualizarClaseRequest) returns (VisualizarClaseResponse);
+  rpc CalificarClase(CalificarClaseRequest) returns (CalificarClaseResponse);
+  rpc ConsultarCalificacionUsuario(ConsultarCalificacionUsuarioRequest) returns (ConsultarCalificacionUsuarioResponse);
+
+  //asignar desasignar tema
+
+
+  // Tendencias y recomendaciones (con cache Redis TTL)
+  rpc ConsultarClasesMasVistas(ConsultarClasesMasVistasRequest) returns (ConsultarClasesMasVistasResponse);
+  rpc ConsultarTemasTendencia(ConsultarTemasTendenciaRequest) returns (ConsultarTemasTendenciaResponse);
+  rpc ConsultarRankingValoradas(ConsultarRankingValoradasRequest) returns (ConsultarRankingValoradasResponse);
+
+  // Auditoria
+  rpc ConsultarAuditLogs(ConsultarAuditLogsRequest) returns (ConsultarAuditLogsResponse);
+}
+
+// ── Espejo local: Unidades ─────────────────────
+message CrearUnidadRequest {
+  string nombre = 1;        // Nombre de la unidad
+  string descripcion = 2;   // Descripcion (opcional)
+}
+
+message CrearUnidadResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Unidad unidad = 3;
+}
+
+message EditarUnidadRequest {
+  int32 id_unidad = 1;      // Unidad a editar
+  string nombre = 2;        // Nuevo nombre
+  string descripcion = 3;   // Nueva descripcion (opcional)
+}
+
+message EditarUnidadResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Unidad unidad = 3;
+}
+
+message EliminarUnidadRequest {
+  int32 id_unidad = 1;  // Unidad a eliminar
+}
+
+message EliminarUnidadResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+message ConsultarUnidadesRequest {}
+
+message ConsultarUnidadesResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated Unidad unidades = 3;
+}
+
+// ── Espejo local: Temas ────────────────────────
+message CrearTemaRequest {
+  int32 id_unidad = 1;     // Unidad a la que pertenece (FK unidad.id_unidad)
+  string nombre = 2;       // Nombre del tema
+  string descripcion = 3;  // Descripcion (opcional)
+}
+
+message CrearTemaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Tema tema = 3;
+}
+
+message EditarTemaRequest {
+  int32 id_tema = 1;       // Tema a editar
+  int32 id_unidad = 2;     // Nueva unidad (FK unidad.id_unidad)
+  string nombre = 3;       // Nuevo nombre
+  string descripcion = 4;  // Nueva descripcion (opcional)
+}
+
+message EditarTemaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Tema tema = 3;
+}
+
+message EliminarTemaRequest {
+  int32 id_tema = 1;  // Tema a eliminar
+}
+
+message EliminarTemaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+message ConsultarTemasRequest {
+  int32 id_unidad = 1;  // Filtrar por unidad (0 = todos)
+}
+
+message ConsultarTemasResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated Tema temas = 3;
+}
+
+// ── Espejo local: Clases grabadas ──────────────
+message CrearClaseGrabadaRequest {
+  int32 id_curso = 1;        // Curso (FK curso.id_curso)
+  int32 id_periodo = 2;      // Periodo (FK periodo.id_periodo)
+  int32 id_area = 3;         // Area (FK area.id_area)
+  string titulo = 4;         // Titulo de la clase
+  string fecha_impartida = 5; // Fecha de imparticion (YYYY-MM-DD HH:MM:SS)
+  int32 duracion_min = 6;    // Duracion en minutos (> 0)
+  string descripcion = 7;    // Descripcion (opcional)
+  string url_video = 8;      // Enlace del video
+  int32 anio = 9;            // Anio de la clase
+  int32 num_semestre = 10;   // Semestre de la clase (1 o 2)
+}
+
+message CrearClaseGrabadaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  ClaseGrabada clase = 3;
+}
+
+message EditarClaseGrabadaRequest {
+  int32 id_clase = 1;         // Clase a editar
+  int32 id_curso = 2;         // Nuevo curso (opcional)
+  int32 id_periodo = 3;       // Nuevo periodo (opcional)
+  int32 id_area = 4;          // Nueva area (opcional)
+  string titulo = 5;          // Nuevo titulo
+  string fecha_impartida = 6; // Nueva fecha de imparticion
+  int32 duracion_min = 7;     // Nueva duracion en minutos (> 0)
+  string descripcion = 8;     // Nueva descripcion (opcional)
+  string url_video = 9;       // Nuevo enlace del video
+  int32 anio = 10;            // Nuevo anio
+  int32 num_semestre = 11;    // Nuevo semestre (1 o 2)
+}
+
+message EditarClaseGrabadaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  ClaseGrabada clase = 3;
+}
+
+message EliminarClaseGrabadaRequest {
+  int32 id_clase = 1;  // Clase a eliminar
+}
+
+message EliminarClaseGrabadaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+message ConsultarCatalogoClasesRequest {}
+
+message ConsultarCatalogoClasesResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated CatalogoClase registros = 3;
+}
+
+// Mensajes Carga Masiva Clases
+
+message ClaseGrabadaInput {
+  int32 id_curso = 1;
+  int32 id_periodo = 2;
+  int32 id_area = 3;
+  string titulo = 4;
+  string fecha_impartida = 5; // YYYY-MM-DD HH:MM:SS
+  int32 duracion_min = 6;
+  string descripcion = 7;
+  string url_video = 8;
+  int32 anio = 9;
+  int32 num_semestre = 10;
+}
+
+message BatchCrearClaseRequest {
+  repeated ClaseGrabadaInput clases = 1;
+}
+
+message BatchCrearClaseResult {
+  int32 index = 1;       // índice en la lista entrante (1-based)
+  bool exito = 2;
+  string mensaje = 3;
+  int32 id_clase = 4;    // id asignado si exito
+}
+
+message BatchCrearClaseResponse {
+  bool exito = 1;        // true si la operación completa se procesó (aunque haya errores por ítems)
+  string mensaje = 2;
+  repeated BatchCrearClaseResult resultados = 3;
+}
+
+//Asignar desasignar temas
+
+message AsignarTemaClaseGrabadaRequest {
+  int32 id_clase = 1;  // Clase (FK clase_grabada.id_clase)
+  int32 id_tema = 2;   // Tema a asociar (FK tema.id_tema)
+}
+
+message AsignarTemaClaseGrabadaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+message DesasignarTemaClaseGrabadaRequest {
+  int32 id_clase = 1;
+  int32 id_tema = 2;
+}
+
+message DesasignarTemaClaseGrabadaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+// ── Analitica: acciones de usuarios ────────────
+message VisualizarClaseRequest {
+  int32 id_clase = 1;   // Clase reproducida
+  int32 id_usuario = 2; // Usuario que visualiza (opcional, 0 si no aplica)
+}
+
+message VisualizarClaseResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  ClaseVista clase = 3; // Clase con su conteo actualizado
+}
+
+message CalificarClaseRequest {
+  int32 id_clase = 1;
+  int32 puntuacion = 2;  // 1 a 5
+  int32 id_usuario = 3;  // Usuario que califica (opcional)
+}
+
+message CalificarClaseResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  double promedio_calificacion = 3; // Promedio actualizado de la clase
+}
+
+message ConsultarCalificacionUsuarioRequest {
+  int32 id_clase = 1;
+  int32 id_usuario = 2;
+}
+
+message ConsultarCalificacionUsuarioResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  bool ya_califico = 3;         // true si el usuario ya calificó la clase
+  int32 puntuacion = 4;         // Puntuación previa del usuario (0 si no calificó)
+  double promedio_calificacion = 5; // Promedio actual de la clase
+  int32 total_calificaciones = 6;   // Total de calificaciones de la clase
+}
+
+// ── Analitica: tendencias ──────────────────────
+message ConsultarClasesMasVistasRequest {
+  string fecha_inicio = 1; // YYYY-MM-DD
+  string fecha_fin = 2;    // YYYY-MM-DD
+  int32 limite = 3;        // Maximo de resultados (0 = sin limite)
+}
+
+message ConsultarClasesMasVistasResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated ClaseVista registros = 3;
+}
+
+message ConsultarTemasTendenciaRequest {
+  string fecha_inicio = 1; // YYYY-MM-DD
+  string fecha_fin = 2;    // YYYY-MM-DD
+  int32 limite = 3;        // Maximo de resultados (0 = sin limite)
+}
+
+message ConsultarTemasTendenciaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated TemaTendencia registros = 3;
+}
+
+message ConsultarRankingValoradasRequest {
+  int32 limite = 1; // Maximo de resultados (0 = sin limite)
+}
+
+message ConsultarRankingValoradasResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated ClaseValorada registros = 3;
+}
+
+// ── Auditoria ──────────────────────────────────
+message ConsultarAuditLogsRequest {
+  int32 pagina = 1;          // Pagina a consultar (10 registros por pagina)
+  int32 usuario_filtro = 2;  // Filtrar por usuario responsable (0 = todos)
+  string tabla_filtro = 3;   // Filtrar por tabla afectada (vacio = todas)
+}
+
+message ConsultarAuditLogsResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated AuditLog registros = 3;
+  int32 total_paginas = 4;
+}
+
+// ── Mensajes compuestos (modelos) ──────────────
+message Unidad {
+  int32 id_unidad = 1;
+  string nombre = 2;
+  string descripcion = 3;
+}
+
+message Tema {
+  int32 id_tema = 1;
+  int32 id_unidad = 2;
+  string nombre = 3;
+  string descripcion = 4;
+  string unidad = 5;  // Nombre de la unidad (solo en respuestas con JOIN)
+}
+
+message ClaseGrabada {
+  int32 id_clase = 1;
+  int32 id_curso = 2;
+  int32 id_periodo = 3;
+  int32 id_area = 4;
+  string titulo = 5;
+  string fecha_impartida = 6;  // YYYY-MM-DD HH:MM:SS
+  int32 duracion_min = 7;
+  string descripcion = 8;
+  string url_video = 9;
+  int32 anio = 10;
+  int32 num_semestre = 11;
+}
+
+message CatalogoClase {
+  int32 id_clase = 1;
+  string titulo = 2;
+  string descripcion = 3;
+  string fecha_impartida = 4;  // YYYY-MM-DD HH:MM:SS
+  int32 duracion_min = 5;
+  string url_video = 6;
+  int32 anio = 7;
+  int32 num_semestre = 8;
+  int32 id_curso = 9;
+  int32 id_area = 10;
+  int32 id_periodo = 11;
+}
+
+message ClaseVista {
+  int32 id_clase = 1;
+  string titulo = 2;
+  int32 total_visualizaciones = 3;
+}
+
+message TemaTendencia {
+  int32 id_tema = 1;
+  string nombre = 2;
+  string unidad = 3;
+  int32 total_visualizaciones = 4;
+}
+
+message ClaseValorada {
+  int32 id_clase = 1;
+  string titulo = 2;
+  double promedio_calificacion = 3;
+  int32 total_calificaciones = 4;
+}
+
+message AuditLog {
+  int32 id_auditoria = 1;
+  int32 usuario_responsable = 2;
+  string operacion = 3;
+  string tabla_afectada = 4;
+  string fecha_evento = 5;
+  string estado_anterior = 6;  // JSON serializado
+  string estado_nuevo = 7;     // JSON serializado
+}

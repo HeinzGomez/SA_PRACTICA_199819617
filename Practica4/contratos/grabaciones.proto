@@ -1,0 +1,582 @@
+syntax = "proto3";
+
+package grabaciones;
+
+option go_package = "proto/grabaciones";
+option java_package = "proto.grabaciones";
+
+// ──────────────────────────────────────────────
+// Servicio principal de grabaciones
+// ──────────────────────────────────────────────
+service GrabacionesService {
+  // Catálogo
+  rpc ConsultarCatalogoClases(ConsultarCatalogoClasesRequest) returns (ConsultarCatalogoClasesResponse);
+
+  // Unidades y temas
+  rpc CrearUnidad(CrearUnidadRequest) returns (CrearUnidadResponse);
+  rpc EditarUnidad(EditarUnidadRequest) returns (EditarUnidadResponse);
+  rpc EliminarUnidad(EliminarUnidadRequest) returns (EliminarUnidadResponse);
+  rpc ConsultarUnidades(ConsultarUnidadesRequest) returns (ConsultarUnidadesResponse);
+  rpc CrearTema(CrearTemaRequest) returns (CrearTemaResponse);
+  rpc EditarTema(EditarTemaRequest) returns (EditarTemaResponse);
+  rpc EliminarTema(EliminarTemaRequest) returns (EliminarTemaResponse);
+  rpc ConsultarTemas(ConsultarTemasRequest) returns (ConsultarTemasResponse);
+
+  // Clases grabadas
+  rpc CrearClaseGrabada(CrearClaseGrabadaRequest) returns (CrearClaseGrabadaResponse);
+  rpc CargaMasivaClases(BatchCrearClaseRequest) returns (BatchCrearClaseResponse);
+  rpc EditarClaseGrabada(EditarClaseGrabadaRequest) returns (EditarClaseGrabadaResponse);
+  rpc EliminarClaseGrabada(EliminarClaseGrabadaRequest) returns (EliminarClaseGrabadaResponse);
+  rpc BusquedaAvanzada(BusquedaAvanzadaRequest) returns (BusquedaAvanzadaResponse);
+  rpc ObtenerDetalleClaseGrabada(ObtenerDetalleClaseGrabadaRequest) returns (ObtenerDetalleClaseGrabadaResponse);
+  rpc ObtenerEnlaceClaseGrabada(ObtenerEnlaceClaseGrabadaRequest) returns (ObtenerEnlaceClaseGrabadaResponse);
+
+  // Asignaciones
+  rpc AsignarDocente(AsignarDocenteRequest) returns (AsignarDocenteResponse);
+  rpc DesasignarDocente(DesasignarDocenteRequest) returns (DesasignarDocenteResponse);
+  rpc AsignarAuxiliar(AsignarAuxiliarRequest) returns (AsignarAuxiliarResponse);
+  rpc DesasignarAuxiliar(DesasignarAuxiliarRequest) returns (DesasignarAuxiliarResponse);
+  rpc AsignarMaterialApoyo(AsignarMaterialApoyoRequest) returns (AsignarMaterialApoyoResponse);
+  rpc DesasignarMaterialApoyo(DesasignarMaterialApoyoRequest) returns (DesasignarMaterialApoyoResponse);
+
+  rpc AsignarTemaClaseGrabada(AsignarTemaClaseGrabadaRequest) returns (AsignarTemaClaseGrabadaResponse);
+  rpc DesasignarTemaClaseGrabada(DesasignarTemaClaseGrabadaRequest) returns (DesasignarTemaClaseGrabadaResponse);
+  
+  rpc ConsultarParticipantesClase(ConsultarParticipantesClaseRequest) returns (ConsultarParticipantesClaseResponse);
+
+  // HeinzGomez - Segmentación por capítulos (video chapters)
+  rpc CrearCapitulo(CrearCapituloRequest) returns (CrearCapituloResponse);
+  rpc EditarCapitulo(EditarCapituloRequest) returns (EditarCapituloResponse);
+  rpc EliminarCapitulo(EliminarCapituloRequest) returns (EliminarCapituloResponse);
+  rpc ConsultarCapitulosClase(ConsultarCapitulosClaseRequest) returns (ConsultarCapitulosClaseResponse);
+
+  // Auditoría
+  rpc ConsultarAuditLogs(ConsultarAuditLogsRequest) returns (ConsultarAuditLogsResponse);
+}
+
+// ──────────────────────────────────────────────
+// CrearUnidad
+// ──────────────────────────────────────────────
+message CrearUnidadRequest {
+  string nombre = 1;        // Nombre de la unidad
+  string descripcion = 2;   // Descripción (opcional)
+}
+
+message CrearUnidadResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Unidad unidad = 3;
+}
+
+// ──────────────────────────────────────────────
+// EditarUnidad
+// ──────────────────────────────────────────────
+message EditarUnidadRequest {
+  int32 id_unidad = 1;      // Unidad a editar
+  string nombre = 2;        // Nuevo nombre
+  string descripcion = 3;   // Nueva descripción (opcional)
+}
+
+message EditarUnidadResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Unidad unidad = 3;
+}
+
+// ──────────────────────────────────────────────
+// EliminarUnidad
+// ──────────────────────────────────────────────
+message EliminarUnidadRequest {
+  int32 id_unidad = 1;  // Unidad a eliminar
+}
+
+message EliminarUnidadResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarUnidades
+// ──────────────────────────────────────────────
+message ConsultarUnidadesRequest {}
+
+message ConsultarUnidadesResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated Unidad unidades = 3;
+}
+
+// ──────────────────────────────────────────────
+// CrearTema
+// ──────────────────────────────────────────────
+message CrearTemaRequest {
+  int32 id_unidad = 1;     // Unidad a la que pertenece (FK unidad.id_unidad)
+  string nombre = 2;       // Nombre del tema
+  string descripcion = 3;  // Descripción (opcional)
+}
+
+message CrearTemaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Tema tema = 3;
+}
+
+// ──────────────────────────────────────────────
+// EditarTema
+// ──────────────────────────────────────────────
+message EditarTemaRequest {
+  int32 id_tema = 1;       // ID del tema a editar
+  int32 id_unidad = 2;     // Unidad a la que pertenece (FK unidad.id_unidad)
+  string nombre = 3;       // Nombre del tema
+  string descripcion = 4;  // Descripción (opcional)
+}
+
+message EditarTemaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Tema tema = 3;
+}
+
+// ──────────────────────────────────────────────
+// EliminarTema
+// ──────────────────────────────────────────────
+message EliminarTemaRequest {
+  int32 id_tema = 1;       // ID del tema a eliminar
+}
+
+message EliminarTemaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarTemas
+// ──────────────────────────────────────────────
+message ConsultarTemasRequest {
+  int32 id_unidad = 1;  // Filtrar por unidad (0 = todos)
+}
+
+message ConsultarTemasResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated Tema temas = 3;
+}
+
+// ──────────────────────────────────────────────
+// CrearClaseGrabada (sp_registrar_clase)
+// ──────────────────────────────────────────────
+message CrearClaseGrabadaRequest {
+  int32 id_curso = 1;        // Curso (FK curso.id_curso)
+  int32 id_periodo = 2;      // Período (FK periodo.id_periodo)
+  int32 id_area = 3;         // Área (FK area.id_area)
+  string titulo = 4;         // Título de la clase
+  string fecha_impartida = 5; // Fecha de impartición (YYYY-MM-DD HH:MM:SS)
+  int32 duracion_min = 6;    // Duración en minutos (> 0)
+  string descripcion = 7;    // Descripción (opcional)
+  string url_video = 8;      // Enlace del video
+  int32 anio = 9;            // Año de la clase
+  int32 num_semestre = 10;   // Semestre de la clase (1 o 2)
+}
+
+message CrearClaseGrabadaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  ClaseGrabada clase = 3;
+}
+
+// ──────────────────────────────────────────────
+// EditarClaseGrabada
+// ──────────────────────────────────────────────
+message EditarClaseGrabadaRequest {
+  int32 id_clase = 1;         // Clase a editar
+  int32 id_curso = 2;         // Nuevo curso (opcional)
+  int32 id_periodo = 3;       // Nuevo período (opcional)
+  int32 id_area = 4;          // Nueva área (opcional)
+  string titulo = 5;          // Nuevo título
+  string fecha_impartida = 6; // Nueva fecha de impartición
+  int32 duracion_min = 7;     // Nueva duración en minutos (> 0)
+  string descripcion = 8;     // Nueva descripción (opcional)
+  string url_video = 9;       // Nuevo enlace del video
+  int32 anio = 10;            // Nuevo año
+  int32 num_semestre = 11;    // Nuevo semestre (1 o 2)
+}
+
+message EditarClaseGrabadaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  ClaseGrabada clase = 3;
+}
+
+// ──────────────────────────────────────────────
+// EliminarClaseGrabada
+// ──────────────────────────────────────────────
+message EliminarClaseGrabadaRequest {
+  int32 id_clase = 1;  // Clase a eliminar
+}
+
+message EliminarClaseGrabadaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// BusquedaAvanzada (fn_busqueda_avanzada)
+// Filtra por Año, Semestre, Área/Escuela, Curso,
+// Docente/Catedrático y Tema/Etiqueta (0 = sin filtro).
+// ──────────────────────────────────────────────
+message BusquedaAvanzadaRequest {
+  int32 anio = 1;        // Filtro por año (0 = todos)
+  int32 semestre = 2;    // Filtro por semestre (0 = todos)
+  int32 id_area = 3;     // Filtro por área/escuela (0 = todas)
+  int32 id_curso = 4;    // Filtro por curso (0 = todos)
+  int32 id_docente = 5;  // Filtro por docente participante (0 = todos)
+  int32 id_tema = 6;     // Filtro por tema/etiqueta (0 = todos)
+  int32 pagina = 7;      // Página a consultar (>= 1, 0 = página 1)
+}
+
+message BusquedaAvanzadaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated CatalogoClase registros = 3;
+  int32 total_paginas = 4;  // Total de páginas disponibles
+}
+
+// ──────────────────────────────────────────────
+// ConsultarCatalogoClases (vw_catalogo_clases)
+// Catálogo general de clases grabadas.
+// ──────────────────────────────────────────────
+message ConsultarCatalogoClasesRequest {
+  int32 pagina = 1;  // Página a consultar (>= 1, 0 = página 1)
+}
+
+message ConsultarCatalogoClasesResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated CatalogoClase registros = 3;
+  int32 total_paginas = 4;  // Total de páginas disponibles
+}
+
+// ──────────────────────────────────────────────
+// ObtenerDetalleClaseGrabada (vw_ficha_tecnica + vw_docentes_auxiliares)
+// Vista detallada: ficha técnica + temas y participantes.
+// ──────────────────────────────────────────────
+message ObtenerDetalleClaseGrabadaRequest {
+  int32 id_clase = 1;  // Clase a consultar
+}
+
+message ObtenerDetalleClaseGrabadaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  DetalleClaseGrabada detalle = 3;
+}
+
+// ──────────────────────────────────────────────
+// ObtenerEnlaceClaseGrabada
+// ──────────────────────────────────────────────
+message ObtenerEnlaceClaseGrabadaRequest {
+  int32 id_clase = 1;  // Clase a consultar
+}
+
+message ObtenerEnlaceClaseGrabadaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  string url_video = 3;  // Enlace de reproducción
+}
+
+// --------------------------------------------------
+// Mensajes para carga masiva de clases
+// --------------------------------------------------
+message ClaseGrabadaInput {
+  int32 id_curso = 1;
+  int32 id_periodo = 2;
+  int32 id_area = 3;
+  string titulo = 4;
+  string fecha_impartida = 5; // YYYY-MM-DD HH:MM:SS
+  int32 duracion_min = 6;
+  string descripcion = 7;
+  string url_video = 8;
+  int32 anio = 9;
+  int32 num_semestre = 10;
+}
+
+message BatchCrearClaseRequest {
+  repeated ClaseGrabadaInput clases = 1;
+}
+
+message BatchCrearClaseResult {
+  int32 index = 1;       // índice en la lista entrante (1-based)
+  bool exito = 2;
+  string mensaje = 3;
+  int32 id_clase = 4;    // id asignado si exito
+}
+
+message BatchCrearClaseResponse {
+  bool exito = 1;        // true si la operación completa se procesó (aunque haya errores por ítems)
+  string mensaje = 2;
+  repeated BatchCrearClaseResult resultados = 3;
+}
+
+// ──────────────────────────────────────────────
+// AsignarDocente (sp_asignar_docente)
+// ──────────────────────────────────────────────
+message AsignarDocenteRequest {
+  int32 id_clase = 1;     // Clase (FK clase_grabada.id_clase)
+  int32 id_usuario = 2;   // Docente (FK usuario)
+}
+
+message AsignarDocenteResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// AsignarAuxiliar (sp_asignar_auxiliar)
+// ──────────────────────────────────────────────
+message AsignarAuxiliarRequest {
+  int32 id_clase = 1;     // Clase (FK clase_grabada.id_clase)
+  int32 id_usuario = 2;   // Auxiliar (FK usuario)
+}
+
+message AsignarAuxiliarResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// AsignarMaterialApoyo (sp_agregar_material)
+// Sílabo o material adjunto de la clase.
+// ──────────────────────────────────────────────
+message AsignarMaterialApoyoRequest {
+  int32 id_clase = 1;   // Clase (FK clase_grabada.id_clase)
+  string nombre = 2;    // Nombre del material
+  string tipo = 3;      // Tipo: "SILABO", "PDF", "PPTX", etc.
+  string url = 4;       // Enlace del material
+}
+
+message AsignarMaterialApoyoResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  MaterialApoyo material = 3;
+}
+
+// ──────────────────────────────────────────────
+// AsignarTemaClaseGrabada (sp_asignar_tema_clase)
+// ──────────────────────────────────────────────
+message AsignarTemaClaseGrabadaRequest {
+  int32 id_clase = 1;  // Clase (FK clase_grabada.id_clase)
+  int32 id_tema = 2;   // Tema a asociar (FK tema.id_tema)
+}
+
+message AsignarTemaClaseGrabadaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// DesasignarDocente
+// ──────────────────────────────────────────────
+message DesasignarDocenteRequest {
+  int32 id_clase = 1;
+  int32 id_usuario = 2;
+}
+
+message DesasignarDocenteResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// DesasignarAuxiliar
+// ──────────────────────────────────────────────
+message DesasignarAuxiliarRequest {
+  int32 id_clase = 1;
+  int32 id_usuario = 2;
+}
+
+message DesasignarAuxiliarResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// DesasignarMaterialApoyo
+// ──────────────────────────────────────────────
+message DesasignarMaterialApoyoRequest {
+  int32 id_material = 1;
+}
+
+message DesasignarMaterialApoyoResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// DesasignarTemaClaseGrabada
+// ──────────────────────────────────────────────
+message DesasignarTemaClaseGrabadaRequest {
+  int32 id_clase = 1;
+  int32 id_tema = 2;
+}
+
+message DesasignarTemaClaseGrabadaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarParticipantesClase (vw_docentes_auxiliares)
+// ──────────────────────────────────────────────
+message ConsultarParticipantesClaseRequest {
+  int32 id_clase = 1;  // Clase a consultar
+}
+
+message ConsultarParticipantesClaseResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated Participante participantes = 3;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarAuditLogs (paginado)
+// ──────────────────────────────────────────────
+message ConsultarAuditLogsRequest {
+  int32 pagina = 1;          // Página a consultar (10 registros por página)
+  int32 usuario_filtro = 2;  // Filtrar por usuario responsable (0 = todos)
+  string tabla_filtro = 3;   // Filtrar por tabla afectada (vacío = todas)
+}
+
+message ConsultarAuditLogsResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated AuditLog registros = 3;
+  int32 total_paginas = 4;
+}
+
+// ──────────────────────────────────────────────
+// Mensajes compuestos (modelos)
+// ──────────────────────────────────────────────
+message Unidad {
+  int32 id_unidad = 1;
+  string nombre = 2;
+  string descripcion = 3;
+}
+
+message Tema {
+  int32 id_tema = 1;
+  int32 id_unidad = 2;
+  string nombre = 3;
+  string descripcion = 4;
+  string unidad = 5;  // Nombre de la unidad (solo en respuestas con JOIN)
+}
+
+message ClaseGrabada {
+  int32 id_clase = 1;
+  int32 id_curso = 2;
+  int32 id_periodo = 3;
+  int32 id_area = 4;
+  string titulo = 5;
+  string fecha_impartida = 6;  // YYYY-MM-DD HH:MM:SS
+  int32 duracion_min = 7;
+  string descripcion = 8;
+  string url_video = 9;
+  int32 anio = 10;
+  int32 num_semestre = 11;
+}
+
+message CatalogoClase {
+  int32 id_clase = 1;
+  string titulo = 2;
+  string descripcion = 3;
+  string fecha_impartida = 4;  // YYYY-MM-DD HH:MM:SS
+  int32 duracion_min = 5;
+  string url_video = 6;
+  int32 anio = 7;
+  int32 num_semestre = 8;
+  int32 id_curso = 9;
+  int32 id_area = 10;
+  int32 id_periodo = 11;
+}
+
+message MaterialApoyo {
+  int32 id_material = 1;
+  int32 id_clase = 2;
+  string nombre = 3;
+  string tipo = 4;
+  string url = 5;
+}
+
+message Participante {
+  int32 id_clase = 1;
+  int32 id_usuario = 2;
+  string tipo_participante = 3;  // "DOCENTE" o "AUXILIAR"
+}
+
+message DetalleClaseGrabada {
+  ClaseGrabada clase = 1;
+  repeated Tema temas = 2;               // Temas/etiquetas de la clase
+  repeated MaterialApoyo materiales = 3; // Sílabo y material adjunto
+  repeated Participante participantes = 4; // Docentes y auxiliares
+}
+
+message AuditLog {
+  int32 id_auditoria = 1;
+  int32 usuario_responsable = 2;
+  string operacion = 3;
+  string tabla_afectada = 4;
+  string fecha_evento = 5;
+  string estado_anterior = 6;  // JSON serializado
+  string estado_nuevo = 7;     // JSON serializado
+}
+
+// ──────────────────────────────────────────────
+// HeinzGomez - Mensajes de segmentación por capítulos
+// ──────────────────────────────────────────────
+message Capitulo {
+  int32 id_capitulo = 1;
+  int32 id_clase = 2;
+  string titulo = 3;
+  int32 tiempo_inicio = 4;  // segundos desde el inicio del video
+}
+
+message CrearCapituloRequest {
+  int32 id_clase = 1;
+  string titulo = 2;
+  int32 tiempo_inicio = 3;
+}
+
+message CrearCapituloResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Capitulo capitulo = 3;
+}
+
+message EditarCapituloRequest {
+  int32 id_capitulo = 1;
+  string titulo = 2;
+  int32 tiempo_inicio = 3;
+}
+
+message EditarCapituloResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Capitulo capitulo = 3;
+}
+
+message EliminarCapituloRequest {
+  int32 id_capitulo = 1;
+}
+
+message EliminarCapituloResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+message ConsultarCapitulosClaseRequest {
+  int32 id_clase = 1;
+}
+
+message ConsultarCapitulosClaseResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated Capitulo capitulos = 3;
+}
