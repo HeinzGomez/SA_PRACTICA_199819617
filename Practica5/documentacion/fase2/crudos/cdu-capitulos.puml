@@ -1,0 +1,41 @@
+@startuml
+' HeinzGomez - Caso de uso: Segmentacion por capitulos (video chapters)
+!pragma layout smetana
+left to right direction
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+
+actor "Docente" as Doc
+actor "Auxiliar" as Aux
+actor "Administrador" as Adm
+actor "Estudiante" as Est
+
+rectangle "YoUSAC - Modulo Segmentacion por Capitulos" {
+  usecase "Crear capitulo" as UC1
+  usecase "Editar capitulo" as UC2
+  usecase "Eliminar capitulo" as UC3
+  usecase "Consultar capitulos\nde la clase" as UC4
+  usecase "Navegar / saltar\na un capitulo" as UC5
+  usecase "Validar rol\n(Docente/Auxiliar/Admin)" as UCV
+}
+
+Doc --> UC1
+Doc --> UC2
+Doc --> UC3
+Aux --> UC1
+Aux --> UC2
+Aux --> UC3
+Adm --> UC1
+Adm --> UC2
+Adm --> UC3
+
+Est --> UC4
+Est --> UC5
+Doc --> UC4
+Adm --> UC4
+
+UC1 ..> UCV : <<include>>
+UC2 ..> UCV : <<include>>
+UC3 ..> UCV : <<include>>
+UC5 ..> UC4 : <<include>>
+@enduml

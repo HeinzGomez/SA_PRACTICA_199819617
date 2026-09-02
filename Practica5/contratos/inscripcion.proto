@@ -1,0 +1,668 @@
+syntax = "proto3";
+
+package inscripcion;
+
+option go_package = "proto/inscripcion";
+option java_package = "proto.inscripcion";
+
+// ──────────────────────────────────────────────
+// Servicio principal de inscripción
+// ──────────────────────────────────────────────
+service InscripcionService {
+
+  rpc CrearArea(CrearAreaRequest) returns (CrearAreaResponse);
+  rpc EditarArea(EditarAreaRequest) returns (EditarAreaResponse);
+  rpc EliminarArea(EliminarAreaRequest) returns (EliminarAreaResponse);
+  rpc ConsultarAreas(ConsultarAreasRequest) returns (ConsultarAreasResponse);
+
+  rpc CrearCurso(CrearCursoRequest) returns (CrearCursoResponse);
+  rpc EditarCurso(EditarCursoRequest) returns (EditarCursoResponse);
+  rpc EliminarCurso(EliminarCursoRequest) returns (EliminarCursoResponse);
+  rpc ConsultarCursos(ConsultarCursosRequest) returns (ConsultarCursosResponse);
+
+  rpc CrearPensum(CrearPensumRequest) returns (CrearPensumResponse);
+  rpc EditarPensum(EditarPensumRequest) returns (EditarPensumResponse);
+  rpc EliminarPensum(EliminarPensumRequest) returns (EliminarPensumResponse);
+  rpc ConsultarPensums(ConsultarPensumsRequest) returns (ConsultarPensumsResponse);
+
+  rpc CrearCarrera(CrearCarreraRequest) returns (CrearCarreraResponse);
+  rpc EditarCarrera(EditarCarreraRequest) returns (EditarCarreraResponse);
+  rpc EliminarCarrera(EliminarCarreraRequest) returns (EliminarCarreraResponse);
+  rpc ConsultarCarreras(ConsultarCarrerasRequest) returns (ConsultarCarrerasResponse);
+
+  rpc CrearPeriodo(CrearPeriodoRequest) returns (CrearPeriodoResponse);
+  rpc EditarPeriodo(EditarPeriodoRequest) returns (EditarPeriodoResponse);
+  rpc EliminarPeriodo(EliminarPeriodoRequest) returns (EliminarPeriodoResponse);
+  rpc ConsultarPeriodos(ConsultarPeriodosRequest) returns (ConsultarPeriodosResponse);
+
+  rpc CrearPerfilAcademico(CrearPerfilAcademicoRequest) returns (CrearPerfilAcademicoResponse);
+  rpc CambiarPerfilAcademico(CambiarPerfilAcademicoRequest) returns (CambiarPerfilAcademicoResponse);
+  rpc ConsultarPerfilAcademico(ConsultarPerfilAcademicoRequest) returns (ConsultarPerfilAcademicoResponse);
+  rpc ConsultarPerfilesEstudiante(ConsultarPerfilesEstudianteRequest) returns (ConsultarPerfilesEstudianteResponse);
+
+  rpc AsignarRolUsuario(AsignarRolUsuarioRequest) returns (AsignarRolUsuarioResponse);
+  rpc CambiarRolUsuario(CambiarRolUsuarioRequest) returns (CambiarRolUsuarioResponse);
+  rpc EliminarRolUsuario(EliminarRolUsuarioRequest) returns (EliminarRolUsuarioResponse);
+  rpc ComprobarRolUsuario(ComprobarRolUsuarioRequest) returns (ComprobarRolUsuarioResponse);
+  rpc ConsultarRolesUsuario(ConsultarRolesUsuarioRequest) returns (ConsultarRolesUsuarioResponse);
+
+  rpc InscribirEstudiante(InscribirEstudianteRequest) returns (InscribirEstudianteResponse);
+  rpc ActualizarEstadoMatricula(ActualizarEstadoMatriculaRequest) returns (ActualizarEstadoMatriculaResponse);
+  rpc ConsultarCursosEstudiante(ConsultarCursosEstudianteRequest) returns (ConsultarCursosEstudianteResponse);
+  rpc ConsultarEstadosMatricula(ConsultarEstadosMatriculaRequest) returns (ConsultarEstadosMatriculaResponse);
+  rpc ConsultarTodasInscripciones(ConsultarTodasInscripcionesRequest) returns (ConsultarTodasInscripcionesResponse);
+  
+  rpc ConsultarAuditLogs(ConsultarAuditLogsRequest) returns (ConsultarAuditLogsResponse);
+}
+
+// ──────────────────────────────────────────────
+// CrearArea
+// ──────────────────────────────────────────────
+message CrearAreaRequest {
+  string codigo = 1;       // Código único del área
+  string nombre = 2;       // Nombre del área
+  string descripcion = 3;  // Descripción (opcional)
+}
+
+message CrearAreaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Area area = 3;
+}
+
+// ──────────────────────────────────────────────
+// EditarArea
+// ──────────────────────────────────────────────
+message EditarAreaRequest {
+  int32 id_area = 1;      // ID del área a editar
+  string codigo = 2;       // Nuevo código del área
+  string nombre = 3;       // Nuevo nombre del área
+  string descripcion = 4;  // Nueva descripción
+}
+
+message EditarAreaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Area area = 3;
+}
+
+// ──────────────────────────────────────────────
+// EliminarArea
+// ──────────────────────────────────────────────
+message EliminarAreaRequest {
+  int32 id_area = 1;      // ID del área a eliminar
+}
+
+message EliminarAreaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// CrearCurso
+// ──────────────────────────────────────────────
+message CrearCursoRequest {
+  string codigo = 1;       // Código único del curso
+  string nombre = 2;       // Nombre del curso
+  string descripcion = 3;  // Descripción (opcional)
+  int32 id_area = 4;       // Área a la que pertenece (FK area.id_area)
+}
+
+message CrearCursoResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Curso curso = 3;
+}
+
+// ──────────────────────────────────────────────
+// EditarCurso
+// ──────────────────────────────────────────────
+message EditarCursoRequest {
+  int32 id_curso = 1;      // ID del curso a editar
+  string codigo = 2;       // Nuevo código del curso
+  string nombre = 3;       // Nuevo nombre del curso
+  string descripcion = 4;  // Nueva descripción
+  int32 id_area = 5;       // Área a la que pertenece
+}
+
+message EditarCursoResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Curso curso = 3;
+}
+
+// ──────────────────────────────────────────────
+// EliminarCurso
+// ──────────────────────────────────────────────
+message EliminarCursoRequest {
+  int32 id_curso = 1;      // ID del curso a eliminar
+}
+
+message EliminarCursoResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarAreas
+// ──────────────────────────────────────────────
+message ConsultarAreasRequest {}
+
+message ConsultarAreasResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated Area areas = 3;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarCursos
+// ──────────────────────────────────────────────
+message ConsultarCursosRequest {
+  int32 id_area = 1;  // Filtro por área (0 = todos)
+}
+
+message ConsultarCursosResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated Curso cursos = 3;
+}
+
+// ──────────────────────────────────────────────
+// CrearPensum
+// ──────────────────────────────────────────────
+message CrearPensumRequest {
+  string nombre = 1;       // Nombre del pensum
+  string descripcion = 2;  // Descripción (opcional)
+}
+
+message CrearPensumResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Pensum pensum = 3;
+}
+
+// ──────────────────────────────────────────────
+// EditarPensum
+// ──────────────────────────────────────────────
+message EditarPensumRequest {
+  int32 id_pensum = 1;     // ID del pensum a editar
+  string nombre = 2;       // Nuevo nombre del pensum
+  string descripcion = 3;  // Nueva descripción
+}
+
+message EditarPensumResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Pensum pensum = 3;
+}
+
+// ──────────────────────────────────────────────
+// EliminarPensum
+// ──────────────────────────────────────────────
+message EliminarPensumRequest {
+  int32 id_pensum = 1;     // ID del pensum a eliminar
+}
+
+message EliminarPensumResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarPensums
+// ──────────────────────────────────────────────
+message ConsultarPensumsRequest {}
+
+message ConsultarPensumsResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated Pensum pensums = 3;
+}
+
+// ──────────────────────────────────────────────
+// CrearCarrera
+// ──────────────────────────────────────────────
+message CrearCarreraRequest {
+  string facultad = 1;     // Facultad a la que pertenece
+  string nombre = 2;       // Nombre de la carrera
+  string descripcion = 3;  // Descripción (opcional)
+  int32 id_pensum = 4;     // Pensum asociado (FK pensum.id_pensum)
+}
+
+message CrearCarreraResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Carrera carrera = 3;
+}
+
+// ──────────────────────────────────────────────
+// EditarCarrera
+// ──────────────────────────────────────────────
+message EditarCarreraRequest {
+  int32 id_carrera = 1;    // ID de la carrera a editar
+  string facultad = 2;     // Facultad a la que pertenece
+  string nombre = 3;       // Nombre de la carrera
+  string descripcion = 4;  // Descripción
+  int32 id_pensum = 5;     // Pensum asociado
+}
+
+message EditarCarreraResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Carrera carrera = 3;
+}
+
+// ──────────────────────────────────────────────
+// EliminarCarrera
+// ──────────────────────────────────────────────
+message EliminarCarreraRequest {
+  int32 id_carrera = 1;    // ID de la carrera a eliminar
+}
+
+message EliminarCarreraResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+message ConsultarCarrerasRequest {}
+
+message ConsultarCarrerasResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated Carrera carreras = 3;
+}
+
+// ──────────────────────────────────────────────
+// CrearPeriodo
+// ──────────────────────────────────────────────
+message CrearPeriodoRequest {
+  int32 anio = 1;         // Año del período (ej. 2026)
+  int32 num_semestre = 2; // Número de semestre (1 o 2)
+}
+
+message CrearPeriodoResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Periodo periodo = 3;
+}
+
+// ──────────────────────────────────────────────
+// EditarPeriodo
+// ──────────────────────────────────────────────
+message EditarPeriodoRequest {
+  int32 id_periodo = 1;   // ID del período a editar
+  int32 anio = 2;         // Nuevo año del período
+  int32 num_semestre = 3; // Nuevo número de semestre
+}
+
+message EditarPeriodoResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Periodo periodo = 3;
+}
+
+// ──────────────────────────────────────────────
+// EliminarPeriodo
+// ──────────────────────────────────────────────
+message EliminarPeriodoRequest {
+  int32 id_periodo = 1;   // ID del período a eliminar
+}
+
+message EliminarPeriodoResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarPeriodos
+// ──────────────────────────────────────────────
+message ConsultarPeriodosRequest {}
+
+message ConsultarPeriodosResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated Periodo periodos = 3;
+}
+
+// ──────────────────────────────────────────────
+// CrearPerfilAcademico
+// ──────────────────────────────────────────────
+message CrearPerfilAcademicoRequest {
+  int32 id_usuario = 1;            // Usuario del perfil (FK usuario)
+  string registro_academico = 2;   // Registro académico (único)
+  string dpi = 3;                  // DPI (único)
+  string fecha_nacimiento = 4;     // Fecha de nacimiento (YYYY-MM-DD)
+  string telefono = 5;             // Teléfono (opcional)
+  int32 id_carrera = 6;            // Carrera asociada (FK carrera.id_carrera)
+  string direccion = 7;            // Dirección (opcional)
+}
+
+message CrearPerfilAcademicoResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  PerfilAcademico perfil = 3;
+}
+
+// ──────────────────────────────────────────────
+// CambiarPerfilAcademico
+// ──────────────────────────────────────────────
+message CambiarPerfilAcademicoRequest {
+  int32 id_perfil = 1;      // Perfil a actualizar
+  string dpi = 2;           // Nuevo DPI
+  string fecha_nacimiento = 3;  // Nueva fecha de nacimiento (YYYY-MM-DD)
+  string telefono = 4;      // Nuevo teléfono
+  string direccion = 5;     // Nueva dirección
+  string registro_academico = 6;  // Nuevo registro académico (opcional)
+}
+
+message CambiarPerfilAcademicoResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  PerfilAcademico perfil = 3;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarPerfilAcademico
+// ──────────────────────────────────────────────
+message ConsultarPerfilAcademicoRequest {
+  int32 id_usuario = 1;  // Usuario cuyo perfil se consulta
+}
+
+message ConsultarPerfilAcademicoResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  PerfilAcademico perfil = 3;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarPerfilesEstudiante (listado de perfiles)
+// ──────────────────────────────────────────────
+message ConsultarPerfilesEstudianteRequest {}
+
+message ConsultarPerfilesEstudianteResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated PerfilEstudiante perfiles = 3;
+}
+
+message PerfilEstudiante {
+  int32 id_perfil = 1;
+  int32 id_usuario = 2;
+  string registro_academico = 3;
+  int32 id_carrera = 4;
+  string carrera = 5;
+  string facultad = 6;
+}
+
+// ──────────────────────────────────────────────
+// AsignarRolUsuario
+// ──────────────────────────────────────────────
+message AsignarRolUsuarioRequest {
+  int32 id_usuario = 1;  // Usuario al que se asigna el rol
+  int32 id_rol = 2;      // Rol a asignar (FK rol.id_rol)
+}
+
+message AsignarRolUsuarioResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// ComprobarRolUsuario
+// ──────────────────────────────────────────────
+message ComprobarRolUsuarioRequest {
+  int32 id_usuario = 1;      // Usuario a consultar
+  string nombre_rol = 2;     // Nombre del rol a comprobar (ej. "Estudiante")
+}
+
+message ComprobarRolUsuarioResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  bool tiene_rol = 3;        // true si el usuario tiene el rol
+}
+
+// ──────────────────────────────────────────────
+// ConsultarRolesUsuario
+// ──────────────────────────────────────────────
+message ConsultarRolesUsuarioRequest {
+  int32 id_usuario = 1;  // Usuario a consultar
+}
+
+message ConsultarRolesUsuarioResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated UsuarioRol roles = 3;  // Roles asignados al usuario
+}
+
+// ──────────────────────────────────────────────
+// CambiarRolUsuario
+// Reemplaza un rol existente por otro para un usuario.
+// ──────────────────────────────────────────────
+message CambiarRolUsuarioRequest {
+  int32 id_usuario = 1;     // Usuario al que se le cambia el rol
+  int32 id_rol_actual = 2;  // Rol actual a reemplazar (FK rol.id_rol)
+  int32 id_rol_nuevo = 3;   // Nuevo rol a asignar (FK rol.id_rol)
+}
+
+message CambiarRolUsuarioResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// EliminarRolUsuario
+// Elimina un rol específico de un usuario.
+// ──────────────────────────────────────────────
+message EliminarRolUsuarioRequest {
+  int32 id_usuario = 1;  // Usuario al que se le elimina el rol
+  int32 id_rol = 2;      // Rol a eliminar (FK rol.id_rol)
+}
+
+message EliminarRolUsuarioResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+// ──────────────────────────────────────────────
+// InscribirEstudiante
+// ──────────────────────────────────────────────
+message InscribirEstudianteRequest {
+  int32 id_usuario = 1;            // Estudiante a inscribir
+  int32 id_curso = 2;              // Curso (FK curso.id_curso)
+  int32 id_periodo = 3;            // Período académico (FK periodo.id_periodo)
+  int32 id_estado_matricula = 4;   // Estado de matrícula (FK estado_matricula.id_estado)
+  string tipo_inscripcion = 5;     // Tipo de inscripción (opcional)
+  int32 usuario_responsable = 6;   // Usuario autenticado que realiza la acción
+}
+
+message InscribirEstudianteResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Inscripcion inscripcion = 3;
+}
+
+// ──────────────────────────────────────────────
+// ActualizarEstadoMatricula
+// ──────────────────────────────────────────────
+message ActualizarEstadoMatriculaRequest {
+  int32 id_inscripcion = 1;  // Inscripción a actualizar
+  int32 nuevo_estado = 2;    // Nuevo estado de matrícula (FK estado_matricula.id_estado)
+  int32 usuario_responsable = 3;  // Usuario autenticado que realiza la acción
+}
+
+message ActualizarEstadoMatriculaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Inscripcion inscripcion = 3;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarCursosEstudiante
+// Panel de control del estudiante: cursos inscritos
+// por año/semestre y estado de matriculación.
+// ──────────────────────────────────────────────
+message ConsultarCursosEstudianteRequest {
+  int32 id_usuario = 1;  // Estudiante a consultar
+  int32 anio = 2;        // Filtro por año (0 = todos)
+  int32 semestre = 3;    // Filtro por semestre (0 = todos)
+  string estado = 4;     // Filtro por estado de matriculación (vacío = todos): código o nombre, ej. "INSCRITO"
+  int32 pagina = 5;      // Página a consultar (1 = primera, 10 registros por página)
+}
+
+message ConsultarCursosEstudianteResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated CursoEstudiante registros = 3;
+  int32 total_paginas = 4;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarEstadosMatricula
+// ──────────────────────────────────────────────
+message ConsultarEstadosMatriculaRequest {}
+
+message ConsultarEstadosMatriculaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated EstadoMatricula estados = 3;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarTodasInscripciones
+// Consulta global de inscripciones con filtros opcionales.
+// ──────────────────────────────────────────────
+message ConsultarTodasInscripcionesRequest {
+  int32 id_curso = 1;    // Filtro por curso (0 = todos)
+  int32 anio = 2;        // Filtro por año (0 = todos)
+  int32 semestre = 3;    // Filtro por semestre (0 = todos)
+  int32 pagina = 4;      // Página a consultar (1 = primera, 10 registros por página)
+}
+
+message ConsultarTodasInscripcionesResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated CursoEstudiante registros = 3;
+  int32 total_paginas = 4;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarAuditLogs (paginado)
+// ──────────────────────────────────────────────
+message ConsultarAuditLogsRequest {
+  int32 pagina = 1;          // Página a consultar (10 registros por página)
+  int32 usuario_filtro = 2;  // Filtrar por usuario responsable (0 = todos)
+  string tabla_filtro = 3;   // Filtrar por tabla afectada (vacío = todas)
+}
+
+message ConsultarAuditLogsResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated AuditLog registros = 3;
+  int32 total_paginas = 4;
+}
+
+// ──────────────────────────────────────────────
+// Mensajes compuestos (modelos)
+// ──────────────────────────────────────────────
+message Rol {
+  int32 id_rol = 1;
+  string nombre = 2;
+  string descripcion = 3;
+}
+
+message UsuarioRol {
+  int32 id_usuario = 1;
+  int32 id_rol = 2;
+  string rol = 3;
+  string descripcion = 4;
+}
+
+message Area {
+  int32 id_area = 1;
+  string codigo = 2;
+  string nombre = 3;
+  string descripcion = 4;
+}
+
+message EstadoMatricula {
+  int32 id_estado = 1;
+  string codigo = 2;
+  string nombre = 3;
+  string descripcion = 4;
+}
+
+message Periodo {
+  int32 id_periodo = 1;
+  int32 anio = 2;
+  int32 num_semestre = 3;
+}
+
+message Pensum {
+  int32 id_pensum = 1;
+  string nombre = 2;
+  string descripcion = 3;
+}
+
+message Curso {
+  int32 id_curso = 1;
+  string codigo = 2;
+  string nombre = 3;
+  string descripcion = 4;
+  int32 id_area = 5;
+  string fecha_inscripcion = 6;  // YYYY-MM-DD HH:MM:SS
+}
+
+message Carrera {
+  int32 id_carrera = 1;
+  string facultad = 2;
+  string nombre = 3;
+  string descripcion = 4;
+  int32 id_pensum = 5;
+  string fecha_creacion = 6;  // YYYY-MM-DD HH:MM:SS
+}
+
+message PerfilAcademico {
+  int32 id_perfil = 1;
+  int32 id_usuario = 2;
+  string registro_academico = 3;
+  string dpi = 4;
+  string fecha_nacimiento = 5;  // YYYY-MM-DD
+  string telefono = 6;
+  int32 id_carrera = 7;
+  string direccion = 8;
+}
+
+message Inscripcion {
+  int32 id_inscripcion = 1;
+  int32 id_usuario = 2;
+  int32 id_curso = 3;
+  int32 id_periodo = 4;
+  int32 id_estado_matricula = 5;
+  string fecha_inscripcion = 6;  // YYYY-MM-DD HH:MM:SS
+  string tipo_inscripcion = 7;
+}
+
+message CursoEstudiante {
+  int32 id_inscripcion = 1;
+  int32 id_usuario = 2;
+  int32 id_curso = 3;
+  string codigo_curso = 4;
+  string curso = 5;
+  string codigo_area = 6;
+  string area = 7;
+  int32 anio = 8;
+  int32 semestre = 9;
+  string codigo_estado = 10;
+  string estado_matricula = 11;
+  string tipo_inscripcion = 12;
+  string fecha_inscripcion = 13;  // YYYY-MM-DD HH:MM:SS
+}
+
+message AuditLog {
+  int32 id_auditoria = 1;
+  int32 usuario_responsable = 2;
+  string operacion = 3;
+  string tabla_afectada = 4;
+  string fecha_evento = 5;
+  string estado_anterior = 6;  // JSON serializado
+  string estado_nuevo = 7;     // JSON serializado
+}

@@ -1,0 +1,258 @@
+syntax = "proto3";
+
+package recursos;
+
+option go_package = "proto/recursos";
+
+// ──────────────────────────────────────────────
+// Servicio de repositorio de recursos
+// ──────────────────────────────────────────────
+service RecursosService {
+  // Repositorio
+  rpc CrearRepositorio(CrearRepositorioRequest) returns (CrearRepositorioResponse);
+
+  // Archivos
+  rpc AgregarArchivo(AgregarArchivoRequest) returns (AgregarArchivoResponse);
+  rpc ActualizarVersionArchivo(ActualizarVersionArchivoRequest) returns (ActualizarVersionArchivoResponse);
+  rpc ActualizarTag(ActualizarTagRequest) returns (ActualizarTagResponse);
+  rpc EliminarArchivo(EliminarArchivoRequest) returns (EliminarArchivoResponse);
+
+  // Consultas
+  rpc ConsultarRepositorio(ConsultarRepositorioRequest) returns (ConsultarRepositorioResponse);
+  rpc ConsultarVersionesArchivo(ConsultarVersionesArchivoRequest) returns (ConsultarVersionesArchivoResponse);
+  rpc ConsultarVersionArchivo(ConsultarVersionArchivoRequest) returns (ConsultarVersionArchivoResponse);
+
+  // Apuntes
+  rpc ConsultarApunte(ConsultarApunteRequest) returns (ConsultarApunteResponse);
+  rpc CrearApunte(CrearApunteRequest) returns (CrearApunteResponse);
+  rpc ActualizarApunte(ActualizarApunteRequest) returns (ActualizarApunteResponse);
+  rpc AgregarMarcadorTiempo(AgregarMarcadorTiempoRequest) returns (AgregarMarcadorTiempoResponse);
+  rpc EliminarMarcadorTiempo(EliminarMarcadorTiempoRequest) returns (EliminarMarcadorTiempoResponse);
+}
+
+// ──────────────────────────────────────────────
+// Mensajes de dominio
+// ──────────────────────────────────────────────
+message ArchivoRepositorio {
+  int32 id_archivo = 1;
+  string nombre = 2;
+}
+
+message VersionArchivo {
+  int32 id_version = 1;
+  int32 id_archivo = 2;
+  string link = 3;
+  string tag = 4;
+  string fecha_creacion = 5;
+  string hash = 6;
+  bool latest = 7;
+}
+
+message RepositorioInfo {
+  int32 id_repositorio = 1;
+  int32 id_clase = 2;
+  string nombre = 3;
+  repeated ArchivoRepositorio archivos = 4;
+}
+
+// ──────────────────────────────────────────────
+// CrearRepositorio
+// ──────────────────────────────────────────────
+message CrearRepositorioRequest {
+  int32 id_clase = 1;
+  string nombre = 2;
+}
+
+message CrearRepositorioResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  int32 id_repositorio = 3;
+}
+
+// ──────────────────────────────────────────────
+// AgregarArchivo
+// ──────────────────────────────────────────────
+message AgregarArchivoRequest {
+  int32 id_repositorio = 1;
+  string nombre = 2;
+  string link = 3;
+  string tag = 4;
+  string hash = 5;
+}
+
+message AgregarArchivoResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  int32 id_archivo = 3;
+}
+
+// ──────────────────────────────────────────────
+// ActualizarVersionArchivo
+// ──────────────────────────────────────────────
+message ActualizarVersionArchivoRequest {
+  int32 id_archivo = 1;
+  string link = 2;
+  string tag = 3;
+  string hash = 4;
+}
+
+message ActualizarVersionArchivoResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// EliminarArchivo
+// ──────────────────────────────────────────────
+message EliminarArchivoRequest {
+  int32 id_archivo = 1;
+}
+
+message EliminarArchivoResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarRepositorio (con lista de archivos)
+// ──────────────────────────────────────────────
+message ConsultarRepositorioRequest {
+  int32 id_clase = 1;
+}
+
+message ConsultarRepositorioResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  RepositorioInfo repositorio = 3;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarVersionesArchivo (todas las versiones)
+// ──────────────────────────────────────────────
+message ConsultarVersionesArchivoRequest {
+  int32 id_archivo = 1;
+}
+
+message ConsultarVersionesArchivoResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated VersionArchivo versiones = 3;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarVersionArchivo (versión concreta)
+// ──────────────────────────────────────────────
+message ConsultarVersionArchivoRequest {
+  int32 id_archivo = 1;
+  int32 id_version = 2;
+}
+
+message ConsultarVersionArchivoResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  VersionArchivo version = 3;
+}
+
+// ──────────────────────────────────────────────
+// ActualizarTag
+// ──────────────────────────────────────────────
+message ActualizarTagRequest {
+  int32 id_version = 1;
+  string tag = 2;
+}
+
+message ActualizarTagResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// Mensajes de dominio — Apuntes
+// ──────────────────────────────────────────────
+message MarcadorTiempo {
+  int32 id_marcador = 1;
+  int32 segundo = 2;
+  string texto = 3;
+}
+
+message ApunteInfo {
+  int32 id_apunte = 1;
+  int32 id_clase = 2;
+  int32 id_usuario = 3;
+  string titulo = 4;
+  string contenido_markdown = 5;
+  string fecha_creacion = 6;
+  string fecha_actualizacion = 7;
+  repeated MarcadorTiempo marcadores = 8;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarApunte
+// ──────────────────────────────────────────────
+message ConsultarApunteRequest {
+  int32 id_clase = 1;
+  int32 id_usuario = 2;
+}
+
+message ConsultarApunteResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  ApunteInfo apunte = 3;
+}
+
+// ──────────────────────────────────────────────
+// CrearApunte
+// ──────────────────────────────────────────────
+message CrearApunteRequest {
+  int32 id_clase = 1;
+  int32 id_usuario = 2;
+  string titulo = 3;
+  string contenido_markdown = 4;
+}
+
+message CrearApunteResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  int32 id_apunte = 3;
+}
+
+// ──────────────────────────────────────────────
+// ActualizarApunte
+// ──────────────────────────────────────────────
+message ActualizarApunteRequest {
+  int32 id_apunte = 1;
+  string titulo = 2;
+  string contenido_markdown = 3;
+}
+
+message ActualizarApunteResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// AgregarMarcadorTiempo
+// ──────────────────────────────────────────────
+message AgregarMarcadorTiempoRequest {
+  int32 id_apunte = 1;
+  int32 segundo = 2;
+  string texto = 3;
+}
+
+message AgregarMarcadorTiempoResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  int32 id_marcador = 3;
+}
+
+// ──────────────────────────────────────────────
+// EliminarMarcadorTiempo
+// ──────────────────────────────────────────────
+message EliminarMarcadorTiempoRequest {
+  int32 id_marcador = 1;
+}
+
+message EliminarMarcadorTiempoResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}

@@ -1,0 +1,39 @@
+@startuml
+' HeinzGomez - DER extendido: entidad capitulo y su relacion con clase_grabada
+!pragma layout smetana
+hide circle
+skinparam linetype ortho
+
+entity "clase_grabada" as clase {
+  * id_clase : SERIAL <<PK>>
+  --
+  id_curso : INT
+  titulo : VARCHAR(150)
+  duracio_min : INT
+  url_video : VARCHAR(255)
+  ...
+}
+
+entity "capitulo" as cap {
+  * id_capitulo : SERIAL <<PK>>
+  --
+  * id_clase : INT <<FK>>
+  * titulo : VARCHAR(150)
+  * tiempo_inicio : INT
+  --
+  UNIQUE (id_clase, tiempo_inicio)
+  CHECK (tiempo_inicio >= 0)
+}
+
+entity "audit_logs" as audit {
+  * id_auditoria : SERIAL <<PK>>
+  --
+  operacion : VARCHAR(50)
+  tabla_afectada : VARCHAR(50)
+  estado_anterior : JSONB
+  estado_nuevo : JSONB
+}
+
+clase ||--o{ cap : "1..* (ON DELETE CASCADE)"
+cap ..> audit : "trigger trg_auditoria_capitulo"
+@enduml
