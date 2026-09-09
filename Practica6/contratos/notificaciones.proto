@@ -1,0 +1,121 @@
+syntax = "proto3";
+
+package notificaciones;
+
+// ──────────────────────────────────────────────
+// Servicio principal de notificaciones
+// ──────────────────────────────────────────────
+service NotificacionesService {
+  // Envío de correos
+  rpc EnviarNotificacionRegistro(EnviarNotificacionRegistroRequest) returns (EnviarNotificacionRegistroResponse);
+  rpc EnviarNotificacionContenidoNuevo(EnviarNotificacionContenidoNuevoRequest) returns (EnviarNotificacionContenidoNuevoResponse);
+  rpc EnviarNotificacionAvisoGeneral(EnviarNotificacionAvisoGeneralRequest) returns (EnviarNotificacionAvisoGeneralResponse);
+
+  // Consultas
+  rpc ConsultarNotificaciones(ConsultarNotificacionesRequest) returns (ConsultarNotificacionesResponse);
+
+  // Auditoría
+  rpc ConsultarAuditLogs(ConsultarAuditLogsRequest) returns (ConsultarAuditLogsResponse);
+}
+
+// ──────────────────────────────────────────────
+// EnviarNotificacionRegistro (bienvenida a correo)
+// ──────────────────────────────────────────────
+message EnviarNotificacionRegistroRequest {
+  int32 id_usuario = 1;      // Usuario recién registrado
+  string correo = 2;         // Correo destino
+  string nombre_usuario = 3; // Nombre para personalizar el mensaje
+}
+
+message EnviarNotificacionRegistroResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Notificacion notificacion = 3;
+}
+
+// ──────────────────────────────────────────────
+// EnviarNotificacionContenidoNuevo (correo a lista de correos)
+// ──────────────────────────────────────────────
+message EnviarNotificacionContenidoNuevoRequest {
+  int32 id_usuario = 1;        // Usuario responsable del envío
+  repeated string correos = 2; // Lista de correos destinatarios
+  string titulo_contenido = 3; // Título del contenido nuevo (clase/material)
+  string descripcion = 4;      // Descripción breve (opcional)
+}
+
+message EnviarNotificacionContenidoNuevoResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  int32 destinatarios = 3;          // Cantidad de correos a los que se notificó
+  repeated Notificacion notificaciones = 4;
+}
+
+// ──────────────────────────────────────────────
+// EnviarNotificacionAvisoGeneral (anuncio a correo)
+// ──────────────────────────────────────────────
+message EnviarNotificacionAvisoGeneralRequest {
+  int32 id_usuario = 1; // Usuario responsable del aviso
+  string correo = 2;    // Correo destino del aviso
+  string asunto = 3;    // Asunto del aviso
+  string mensaje = 4;   // Cuerpo del aviso
+}
+
+message EnviarNotificacionAvisoGeneralResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  Notificacion notificacion = 3;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarNotificaciones (vw_notificaciones, paginado)
+// ──────────────────────────────────────────────
+message ConsultarNotificacionesRequest {
+  int32 id_usuario = 1;  // Filtrar por usuario (0 = todos)
+  int32 pagina = 2;      // Página a consultar (10 registros por página)
+}
+
+message ConsultarNotificacionesResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated Notificacion registros = 3;
+  int32 total_paginas = 4;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarAuditLogs (paginado)
+// ──────────────────────────────────────────────
+message ConsultarAuditLogsRequest {
+  int32 pagina = 1;          // Página a consultar (10 registros por página)
+  int32 usuario_filtro = 2;  // Filtrar por usuario responsable (0 = todos)
+  string tabla_filtro = 3;   // Filtrar por tabla afectada (vacío = todas)
+}
+
+message ConsultarAuditLogsResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated AuditLog registros = 3;
+  int32 total_paginas = 4;
+}
+
+// ──────────────────────────────────────────────
+// Mensajes compuestos (modelos)
+// ──────────────────────────────────────────────
+message Notificacion {
+  int32 id_notificacion = 1;
+  int32 id_usuario = 2;
+  string tipo = 3;              // "REGISTRO", "CONTENIDO_NUEVO", "AVISO_GENERAL"
+  string asunto = 4;
+  string mensaje = 5;
+  string fecha_envio = 6;       // YYYY-MM-DD HH:MM:SS
+  string estado = 7;            // "ENVIADO"
+}
+
+message AuditLog {
+  int32 id_auditoria = 1;
+  int32 usuario_responsable = 2;
+  string operacion = 3;
+  string tabla_afectada = 4;
+  string fecha_evento = 5;
+  string estado_anterior = 6;  // JSON serializado
+  string estado_nuevo = 7;     // JSON serializado
+}

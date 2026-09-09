@@ -1,0 +1,195 @@
+syntax = "proto3";
+
+package autenticacion;
+
+option go_package = "proto/autenticacion";
+option java_package = "proto.autenticacion";
+
+// ──────────────────────────────────────────────
+// Servicio principal de autenticación
+// ──────────────────────────────────────────────
+service AutenticacionService {
+  rpc RegistrarUsuario(RegistrarUsuarioRequest) returns (RegistrarUsuarioResponse);
+  rpc CrearSesion(CrearSesionRequest) returns (CrearSesionResponse);
+  rpc CerrarSesion(CerrarSesionRequest) returns (CerrarSesionResponse);
+  rpc ValidarSesion(ValidarSesionRequest) returns (ValidarSesionResponse);
+  rpc CambiarPassword(CambiarPasswordRequest) returns (CambiarPasswordResponse);
+  rpc ConsultarAuditLogs(ConsultarAuditLogsRequest) returns (ConsultarAuditLogsResponse);
+  rpc ConsultarUsuario(ConsultarUsuarioRequest) returns (ConsultarUsuarioResponse);
+  rpc ConsultarUsuarios(ConsultarUsuariosRequest) returns (ConsultarUsuariosResponse);
+
+  rpc IniciarOAuthGoogle(IniciarOAuthGoogleRequest) returns (IniciarOAuthGoogleResponse);
+  rpc AutenticarConGoogle(AutenticarConGoogleRequest) returns (AutenticarConGoogleResponse);
+}
+
+// ──────────────────────────────────────────────
+// RegistrarUsuario
+// ──────────────────────────────────────────────
+message RegistrarUsuarioRequest {
+  string nombre     = 1;
+  string apellido   = 2;
+  string correo     = 3; // Debe ser @ingenieria.usac.edu.gt o @ing.usac.edu.gt
+  string password   = 4; // Se hashea en el servidor
+}
+
+message RegistrarUsuarioResponse {
+  bool   exito   = 1;
+  string mensaje = 2;
+  Usuario usuario = 3;
+}
+
+// ──────────────────────────────────────────────
+// CrearSesion (login)
+// ──────────────────────────────────────────────
+message CrearSesionRequest {
+  string correo   = 1;
+  string password = 2;
+}
+
+message CrearSesionResponse {
+  bool   exito        = 1;
+  string mensaje      = 2;
+  string access_token = 3; // JWT
+  string refresh_token = 4;
+  Sesion sesion       = 5;
+}
+
+// ──────────────────────────────────────────────
+// CerrarSesion (logout)
+// ──────────────────────────────────────────────
+message CerrarSesionRequest {
+  int32  id_sesion = 1;
+}
+
+message CerrarSesionResponse {
+  bool   exito   = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// ValidarSesion
+// ──────────────────────────────────────────────
+message ValidarSesionRequest {
+  string access_token = 1; // JWT a validar
+}
+
+message ValidarSesionResponse {
+  bool    exito    = 1;
+  string  mensaje  = 2;
+  Sesion  sesion   = 3;
+  Usuario usuario  = 4;
+}
+
+// ──────────────────────────────────────────────
+// CambiarPassword
+// ──────────────────────────────────────────────
+message CambiarPasswordRequest {
+  int32  id_usuario      = 1; // Usuario al que se le cambia la contraseña
+  string password_actual = 2; // Contraseña actual (se valida en el servidor)
+  string password_nueva  = 3; // Nueva contraseña (se hashea en el servidor)
+}
+
+message CambiarPasswordResponse {
+  bool   exito   = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarAuditLogs (paginado)
+// ──────────────────────────────────────────────
+message ConsultarAuditLogsRequest {
+  int32 pagina          = 1; // Página a consultar (10 registros por página)
+  int32 usuario_filtro  = 2; // Filtrar por usuario responsable (0 = todos)
+  string tabla_filtro   = 3; // Filtrar por tabla afectada (vacío = todas)
+}
+
+message ConsultarAuditLogsResponse {
+  bool   exito   = 1;
+  string mensaje = 2;
+  repeated AuditLog registros = 3;
+  int32  total_paginas = 4;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarUsuario (por id)
+// ──────────────────────────────────────────────
+message ConsultarUsuarioRequest {
+  int32 id_usuario = 1;
+}
+
+message ConsultarUsuarioResponse {
+  bool   exito   = 1;
+  string mensaje = 2;
+  Usuario usuario = 3;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarUsuarios (listado de usuarios)
+// ──────────────────────────────────────────────
+message ConsultarUsuariosRequest {}
+
+message ConsultarUsuariosResponse {
+  bool   exito    = 1;
+  string mensaje  = 2;
+  repeated Usuario usuarios = 3;
+}
+
+// ──────────────────────────────────────────────
+// IniciarOAuthGoogle 
+// ──────────────────────────────────────────────
+message IniciarOAuthGoogleRequest {
+  string state = 1;
+}
+
+message IniciarOAuthGoogleResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  string authorization_url = 3;
+}
+
+// ──────────────────────────────────────────────
+// AutenticarConGoogle
+// ──────────────────────────────────────────────
+message AutenticarConGoogleRequest {
+  string code = 1;
+  string state = 2;
+}
+
+message AutenticarConGoogleResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  string access_token = 3;
+  string refresh_token = 4;
+  Sesion sesion = 5;
+  Usuario usuario = 6;
+}
+
+// ──────────────────────────────────────────────
+// Mensajes compuestos (modelos)
+// ──────────────────────────────────────────────
+message Usuario {
+  int32  id_usuario            = 1;
+  string nombre                = 2;
+  string apellido              = 3;
+  string correo_institucional  = 4;
+  string estado                = 5;
+  string fecha_registro        = 6;
+}
+
+message Sesion {
+  int32  id_sesion          = 1;
+  int32  id_usuario         = 2;
+  string fecha_creacion     = 3;
+  string fecha_expiracion   = 4;
+  string estado             = 5;
+}
+
+message AuditLog {
+  int32  id_auditoria        = 1;
+  int32  usuario_responsable = 2;
+  string operacion           = 3;
+  string tabla_afectada      = 4;
+  string fecha_evento        = 5;
+  string estado_anterior     = 6; // JSON serializado
+  string estado_nuevo        = 7; // JSON serializado
+}

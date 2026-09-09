@@ -1,0 +1,17 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-x -q --tb=short"
+
+[tool.coverage.run]
+source = ["controller", "services", "repositories", "config", "models", "server/grpc_server.py"]
+omit = [
+    "server/analisis_pb2.py",
+    "server/analisis_pb2_grpc.py",
+    "app.py",
+    "tests/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 75

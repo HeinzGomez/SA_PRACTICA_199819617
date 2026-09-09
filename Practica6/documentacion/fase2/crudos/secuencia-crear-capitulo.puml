@@ -1,0 +1,40 @@
+@startuml
+' HeinzGomez - Secuencia: Crear capitulo (panel admin)
+autonumber
+actor "Docente/Auxiliar/Admin" as U
+participant "CapitulosModal\n(Frontend)" as FE
+participant "API Gateway\n/grab/clase/:id/capitulo" as GW
+participant "grab-service\nCapituloController" as CC
+participant "CapituloService" as CS
+participant "CapituloRepository" as CR
+database "PostgreSQL" as DB
+
+U -> FE : Ingresa titulo y marca MM:SS
+FE -> FE : parsearTiempo() valida formato\ny <= duracion de la clase
+FE -> GW : POST { titulo, tiempo_inicio }
+GW -> GW : validarSesion (JWT) + requerirRol
+GW -> CC : gRPC CrearCapitulo(id_clase, titulo, tiempo_inicio)
+CC -> CS : CrearCapitulo(params)
+CS -> CR : BuscarClaseGrabada(id_clase)
+CR -> DB : SELECT clase
+DB --> CS : duracion_min
+CS -> CS : ValidarCapitulo(titulo, tiempo, duracion*60)
+CS -> CR : ExisteTiempoEnClase(id_clase, tiempo)
+CR -> DB : SELECT EXISTS(...)
+DB --> CS : existe?
+alt marca duplicada
+  CS --> CC : AppError ALREADY_EXISTS
+  CC --> GW : gRPC ALREADY_EXISTS
+  GW --> FE : 409 { exito:false }
+else marca valida
+  CS -> CR : CrearCapitulo(params)
+  CR -> DB : CALL sp_registrar_capitulo(...)
+  DB -> DB : INSERT capitulo + trigger auditoria
+  DB --> CR : fila insertada
+  CR --> CS : Capitulo
+  CS --> CC : Capitulo
+  CC --> GW : { exito:true, capitulo }
+  GW --> FE : 201 { capitulo }
+  FE -> U : Muestra capitulo creado
+end
+@enduml

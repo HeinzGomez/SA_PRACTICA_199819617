@@ -1,0 +1,6 @@
+grpcio==1.81.1
+grpcio-tools==1.81.1
+protobuf
+psycopg2-binary
+redis==5.0.8
+pytest-cov

@@ -1,0 +1,29 @@
+{
+  "name": "api-gateway",
+  "version": "1.0.0",
+  "description": "API Gateway: recibe peticiones del frontend y las redirige a los microservicios",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "ts-node server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "test": "jest --coverage --forceExit --maxWorkers=1",
+    "test:ci": "jest --coverage --forceExit --maxWorkers=1 --ci"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.10.10",
+    "@grpc/proto-loader": "^0.7.13",
+    "cookie-parser": "^1.4.7",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
+    "@types/express": "^4.17.21",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20.14.10",
+    "jest": "^30.5.1",
+    "ts-jest": "^29.4.12",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.3"
+  }
+}

@@ -1,0 +1,425 @@
+networks:
+  yousac-network:
+    driver: bridge
+
+volumes:
+  auth-db-data:
+  inscripcion-db-data:
+  grabaciones-db-data:
+  analisis-db-data:
+  analisis-redis-data:
+  history_db_data:
+  notificacion-db-data:
+  resource-db-data:
+
+services:
+  auth-db:
+    build:
+      context: servicios/autenticacion/database
+      dockerfile: Dockerfile
+    container_name: yousac-auth-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${AUTH_DB_NAME:-authdb}
+      POSTGRES_USER: ${AUTH_DB_USER:-authdb}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASS:-secret}
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+    networks:
+      - yousac-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AUTH_DB_USER:-authdb} -d ${AUTH_DB_NAME:-authdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: servicios/autenticacion/src/Dockerfile
+    container_name: yousac-auth-service
+    restart: unless-stopped
+    environment:
+      AUTH_DB_HOST: ${AUTH_DB_HOST:-auth-db}
+      AUTH_DB_PORT: ${AUTH_DB_PORT:-5432}
+      AUTH_DB_NAME: ${AUTH_DB_NAME:-authdb}
+      AUTH_DB_USER: ${AUTH_DB_USER:-authdb}
+      AUTH_DB_PASS: ${AUTH_DB_PASS:-secret}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-mi_clave_secreta_que_yo_solo_se_jiji}
+      AUTH_JWT_EXPIRES: ${AUTH_JWT_EXPIRES:-60}
+      AUTH_GRPC_PORT: ${AUTH_GRPC_PORT:-50051}
+      AUTH_HTTP_PORT: ${AUTH_HTTP_PORT:-3001}
+
+      AUTH_GOOGLE_CLIENT_ID: ${AUTH_GOOGLE_CLIENT_ID}
+      AUTH_GOOGLE_CLIENT_SECRET: ${AUTH_GOOGLE_CLIENT_SECRET}
+      AUTH_GOOGLE_REDIRECT_URI: ${AUTH_GOOGLE_REDIRECT_URI:-http://localhost/api/auth/google/callback}
+      AUTH_GOOGLE_ALLOWED_DOMAIN: ${AUTH_GOOGLE_ALLOWED_DOMAIN:-ingenieria.usac.edu.gt}
+      AUTH_OAUTH_STATE_SECRET: ${AUTH_OAUTH_STATE_SECRET:-clavesecretaparaoauthgoogle}
+
+      NODE_ENV: ${NODE_ENV:-development}
+    ports:
+      - "${AUTH_HTTP_PORT:-3001}:${AUTH_HTTP_PORT:-3001}"
+      - "${AUTH_GRPC_PORT:-50051}:${AUTH_GRPC_PORT:-50051}"
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    networks:
+      - yousac-network
+
+
+  ins-db:
+    build:
+      context: servicios/inscripcion/database
+      dockerfile: Dockerfile
+    container_name: yousac-ins-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${INS_DB_NAME:-insdb}
+      POSTGRES_USER: ${INS_DB_USER:-insdb}
+      POSTGRES_PASSWORD: ${INS_DB_PASS:-secret}
+    volumes:
+      - inscripcion-db-data:/var/lib/postgresql/data
+    networks:
+      - yousac-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${INS_DB_USER:-insdb} -d ${INS_DB_NAME:-insdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
+
+      
+
+  ins-service:
+    build:
+      context: .
+      dockerfile: servicios/inscripcion/src/Dockerfile
+    container_name: yousac-ins-service
+    restart: unless-stopped
+    environment:
+      INS_DB_HOST: ${INS_DB_HOST:-ins-db}
+      INS_DB_PORT: ${INS_DB_PORT:-5432}
+      INS_DB_NAME: ${INS_DB_NAME:-insdb}
+      INS_DB_USER: ${INS_DB_USER:-insdb}
+      INS_DB_PASS: ${INS_DB_PASS:-secret}
+      INS_GRPC_PORT: ${INS_GRPC_PORT:-50052}
+      INS_HTTP_PORT: ${INS_HTTP_PORT:-3002}
+      NODE_ENV: ${NODE_ENV:-development}
+    ports:
+      - "${INS_HTTP_PORT:-3002}:${INS_HTTP_PORT:-3002}"
+      - "${INS_GRPC_PORT:-50052}:${INS_GRPC_PORT:-50052}"
+    depends_on:
+      ins-db:
+        condition: service_healthy
+    networks:
+      - yousac-network
+
+  grab-db:
+    build:
+      context: servicios/grabaciones/database
+      dockerfile: Dockerfile
+    container_name: yousac-grab-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${GRAB_DB_NAME:-grabdb}
+      POSTGRES_USER: ${GRAB_DB_USER:-grabdb}
+      POSTGRES_PASSWORD: ${GRAB_DB_PASS:-secret}
+    volumes:
+      - grabaciones-db-data:/var/lib/postgresql/data
+    networks:
+      - yousac-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${GRAB_DB_USER:-grabdb} -d ${GRAB_DB_NAME:-grabdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  grab-service:
+    build:
+      context: .
+      dockerfile: servicios/grabaciones/src/Dockerfile
+    container_name: yousac-grab-service
+    restart: unless-stopped
+    environment:
+      GRAB_DB_HOST: ${GRAB_DB_HOST:-grab-db}
+      GRAB_DB_PORT: ${GRAB_DB_PORT:-5432}
+      GRAB_DB_NAME: ${GRAB_DB_NAME:-grabdb}
+      GRAB_DB_USER: ${GRAB_DB_USER:-grabdb}
+      GRAB_DB_PASS: ${GRAB_DB_PASS:-secret}
+      GRAB_GRPC_PORT: ${GRAB_GRPC_PORT:-50053}
+      GRAB_HTTP_PORT: ${GRAB_HTTP_PORT:-3003}
+    ports:
+      - "${GRAB_HTTP_PORT:-3003}:${GRAB_HTTP_PORT:-3003}"
+      - "${GRAB_GRPC_PORT:-50053}:${GRAB_GRPC_PORT:-50053}"
+    depends_on:
+      grab-db:
+        condition: service_healthy
+    networks:
+      - yousac-network
+
+  anal-db:
+    build:
+      context: servicios/analisis/database
+      dockerfile: Dockerfile
+    container_name: yousac-anal-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${ANAL_DB_NAME:-analdb}
+      POSTGRES_USER: ${ANAL_DB_USER:-analdb}
+      POSTGRES_PASSWORD: ${ANAL_DB_PASS:-secret}
+    volumes:
+      - analisis-db-data:/var/lib/postgresql/data
+    networks:
+      - yousac-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ANAL_DB_USER:-analdb} -d ${ANAL_DB_NAME:-analdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  anal-redis:
+    image: redis:7-alpine
+    container_name: yousac-anal-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass ${ANAL_REDIS_PASSWORD:-analsecret}
+    volumes:
+      - analisis-redis-data:/data
+    networks:
+      - yousac-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${ANAL_REDIS_PASSWORD:-analsecret}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  anal-service:
+    build:
+      context: .
+      dockerfile: servicios/analisis/src/Dockerfile
+    container_name: yousac-anal-service
+    restart: unless-stopped
+    environment:
+      ANAL_DB_HOST: ${ANAL_DB_HOST:-anal-db}
+      ANAL_DB_PORT: ${ANAL_DB_PORT:-5432}
+      ANAL_DB_NAME: ${ANAL_DB_NAME:-analdb}
+      ANAL_DB_USER: ${ANAL_DB_USER:-analdb}
+      ANAL_DB_PASS: ${ANAL_DB_PASS:-secret}
+      ANAL_REDIS_HOST: ${ANAL_REDIS_HOST:-anal-redis}
+      ANAL_REDIS_PORT: ${ANAL_REDIS_PORT:-6379}
+      ANAL_REDIS_PASSWORD: ${ANAL_REDIS_PASSWORD:-analsecret}
+      ANAL_REDIS_DB: ${ANAL_REDIS_DB:-0}
+      ANAL_GRPC_PORT: ${ANAL_GRPC_PORT:-50054}
+      ANAL_HTTP_PORT: ${ANAL_HTTP_PORT:-3004}
+    ports:
+      - "${ANAL_HTTP_PORT:-3004}:${ANAL_HTTP_PORT:-3004}"
+      - "${ANAL_GRPC_PORT:-50054}:${ANAL_GRPC_PORT:-50054}"
+    depends_on:
+      anal-db:
+        condition: service_healthy
+      anal-redis:
+        condition: service_healthy
+    networks:
+      - yousac-network
+  
+  history-db:
+    build:
+      context: servicios/historial/database
+      dockerfile: Dockerfile
+    container_name: yousac-history-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${HISTORY_DB_NAME:-historydb}
+      POSTGRES_USER: ${HISTORY_DB_USER:-historydb}
+      POSTGRES_PASSWORD: ${HISTORY_DB_PASS:-secret}
+    volumes:
+      - history_db_data:/var/lib/postgresql/data
+    networks:
+      - yousac-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${HISTORY_DB_USER:-historydb} -d ${HISTORY_DB_NAME:-historydb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  history-service:
+    build:
+      context: .
+      dockerfile: servicios/historial/src/Dockerfile
+    container_name: yousac-history-service
+    restart: unless-stopped
+    environment:
+      HISTORY_DB_HOST: ${HISTORY_DB_HOST:-history-db}
+      HISTORY_DB_PORT: ${HISTORY_DB_PORT:-5432}
+      HISTORY_DB_NAME: ${HISTORY_DB_NAME:-historydb}
+      HISTORY_DB_USER: ${HISTORY_DB_USER:-historydb}
+      HISTORY_DB_PASS: ${HISTORY_DB_PASS:-secret}
+      HISTORY_GRPC_PORT: ${HISTORY_GRPC_PORT:-50055}
+      HISTORY_HTTP_PORT: ${HISTORY_HTTP_PORT:-3005}
+    ports:
+      - "${HISTORY_HTTP_PORT:-3005}:${HISTORY_HTTP_PORT:-3005}"
+      - "${HISTORY_GRPC_PORT:-50055}:${HISTORY_GRPC_PORT:-50055}"
+    depends_on:
+      history-db:
+        condition: service_healthy
+    networks:
+      - yousac-network
+
+  not-db:
+    build:
+      context: servicios/notificaciones/database
+      dockerfile: Dockerfile
+    container_name: yousac-notification-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${NOT_DB_NAME:-notdb}
+      POSTGRES_USER: ${NOT_DB_USER:-notdb}
+      POSTGRES_PASSWORD: ${NOT_DB_PASS:-secret}
+    volumes:
+      - notificacion-db-data:/var/lib/postgresql/data
+    networks:
+      - yousac-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${NOT_DB_USER:-notdb} -d ${NOT_DB_NAME:-notdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: servicios/notificaciones/src/Dockerfile
+    container_name: yousac-notification-service
+    restart: unless-stopped
+    environment:
+      NOT_DB_HOST: ${NOT_DB_HOST:-not-db}
+      NOT_DB_PORT: ${NOT_DB_PORT:-5432}
+      NOT_DB_NAME: ${NOT_DB_NAME:-notdb}
+      NOT_DB_USER: ${NOT_DB_USER:-notdb}
+      NOT_DB_PASS: ${NOT_DB_PASS:-secret}
+      NOTIFICATION_HOST_SMTP: ${NOTIFICATION_HOST_SMTP:-smtp.gmail.com}
+      NOTIFICATION_PORT_SMTP: ${NOTIFICATION_PORT_SMTP:-587}
+      NOTIFICATION_FROM_SMTP: ${NOTIFICATION_FROM_SMTP}
+      NOTIFICATION_PASS_SMTP: ${NOTIFICATION_PASS_SMTP}
+      NOT_GRPC_PORT: ${NOT_GRPC_PORT:-50056}
+      NOT_HTTP_PORT: ${NOT_HTTP_PORT:-3006}
+    ports:
+      - "${NOT_HTTP_PORT:-3006}:${NOT_HTTP_PORT:-3006}"
+      - "${NOT_GRPC_PORT:-50056}:${NOT_GRPC_PORT:-50056}"
+    depends_on:
+      not-db:
+        condition: service_healthy
+    networks:
+      - yousac-network
+
+  resource-db:
+    build:
+      context: servicios/recursos/database
+      dockerfile: Dockerfile
+    container_name: yousac-resource-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${RESOURCE_DB_NAME:-resourcedb}
+      POSTGRES_USER: ${RESOURCE_DB_USER:-resourcedb}
+      POSTGRES_PASSWORD: ${RESOURCE_DB_PASS:-secret}
+    volumes:
+      - resource-db-data:/var/lib/postgresql/data
+    networks:
+      - yousac-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${RESOURCE_DB_USER:-resourcedb} -d ${RESOURCE_DB_NAME:-resourcedb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  resource-service:
+    build:
+      context: .
+      dockerfile: servicios/recursos/src/Dockerfile
+    container_name: yousac-resource-service
+    restart: unless-stopped
+    environment:
+      RESOURCE_DB_HOST: ${RESOURCE_DB_HOST:-resource-db}
+      RESOURCE_DB_PORT: ${RESOURCE_DB_PORT:-5432}
+      RESOURCE_DB_NAME: ${RESOURCE_DB_NAME:-resourcedb}
+      RESOURCE_DB_USER: ${RESOURCE_DB_USER:-resourcedb}
+      RESOURCE_DB_PASS: ${RESOURCE_DB_PASS:-secret}
+      RESOURCE_GRPC_PORT: ${RESOURCE_GRPC_PORT:-50057}
+      RESOURCE_HTTP_PORT: ${RESOURCE_HTTP_PORT:-3007}
+    ports:
+      - "${RESOURCE_HTTP_PORT:-3007}:${RESOURCE_HTTP_PORT:-3007}"
+      - "${RESOURCE_GRPC_PORT:-50057}:${RESOURCE_GRPC_PORT:-50057}"
+    depends_on:
+      resource-db:
+        condition: service_healthy
+    networks:
+      - yousac-network
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: yousac-api-gateway
+    restart: unless-stopped
+    environment:
+      GATEWAY_PORT: 3000
+      AUTH_SERVICE_HTTP_URL: ${AUTH_SERVICE_HTTP_URL:-http://auth-service:3001}
+      AUTH_SERVICE_GRPC_URL: ${AUTH_SERVICE_GRPC_URL:-auth-service:50051}
+
+      INS_SERVICE_HTTP_URL: ${INS_SERVICE_HTTP_URL:-http://ins-service:3002}
+      INS_SERVICE_GRPC_URL: ${INS_SERVICE_GRPC_URL:-ins-service:50052}
+
+      GRAB_SERVICE_HTTP_URL: ${GRAB_SERVICE_HTTP_URL:-http://grab-service:3003}
+      GRAB_SERVICE_GRPC_URL: ${GRAB_SERVICE_GRPC_URL:-grab-service:50053}
+
+      ANAL_SERVICE_HTTP_URL: ${ANAL_SERVICE_HTTP_URL:-http://anal-service:3004}
+      ANAL_SERVICE_GRPC_URL: ${ANAL_SERVICE_GRPC_URL:-anal-service:50054}
+
+      HISTORY_SERVICE_HTTP_URL: ${HISTORY_SERVICE_HTTP_URL:-http://history-service:3005}
+      HISTORY_SERVICE_GRPC_URL: ${HISTORY_SERVICE_GRPC_URL:-history-service:50055}
+
+      NOTIFICATION_SERVICE_HTTP_URL: ${NOTIFICATION_SERVICE_HTTP_URL:-http://notification-service:3006}
+      NOTIFICATION_SERVICE_GRPC_URL: ${NOTIFICATION_SERVICE_GRPC_URL:-notification-service:50056}
+
+      RESOURCE_SERVICE_HTTP_URL: ${RESOURCE_SERVICE_HTTP_URL:-http://resource-service:3007}
+      RESOURCE_SERVICE_GRPC_URL: ${RESOURCE_SERVICE_GRPC_URL:-resource-service:50057}
+
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:80}
+      NODE_ENV: ${NODE_ENV:-develop}
+    ports:
+      - "3000:3000"
+    depends_on:
+      auth-service:
+        condition: service_started
+      ins-service:
+        condition: service_started
+      grab-service:
+        condition: service_started
+      anal-service:
+        condition: service_started
+      history-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+      resource-service:
+        condition: service_started
+    networks:
+      - yousac-network
+
+  frontend:
+    build:
+      context: ./frontend/yo-usac-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
+    container_name: yousac-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      api-gateway:
+        condition: service_started
+    networks:
+      - yousac-network

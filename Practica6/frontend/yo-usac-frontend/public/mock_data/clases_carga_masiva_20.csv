@@ -1,0 +1,21 @@
+id_curso,id_periodo,id_area,titulo,fecha_impartida,duracion_min,descripcion,url_video,anio,num_semestre
+1,3,1,Sistemas Operativos - Introducción,2026-01-10 09:00:00,90,Primera sesión,https://www.youtube.com/embed/dpLEgXcWtik?si=xsP39dFdfamVlugC,2026,1
+2,3,2,Matemática Aplicada - Repaso,2026-02-05 10:00:00,120,Repaso,https://www.youtube.com/embed/dpLEgXcWtik?si=xsP39dFdfamVlugC,2026,1
+3,3,3,Filosofía - Historia,2026-03-01 08:30:00,75,Intro,https://www.youtube.com/embed/dpLEgXcWtik?si=xsP39dFdfamVlugC,2026,1
+1,3,1,Sistemas Operativos - Planificación,2026-01-17 09:00:00,85,Planificación,https://www.youtube.com/embed/dpLEgXcWtik?si=xsP39dFdfamVlugC,2026,1
+2,3,2,Matemática Aplicada - Álgebra,2026-02-12 10:00:00,110,Álgebra,https://www.youtube.com/embed/dpLEgXcWtik?si=xsP39dFdfamVlugC,2026,1
+3,3,3,Filosofía - Ética,2026-03-08 08:30:00,80,Ética,https://www.youtube.com/embed/dpLEgXcWtik?si=xsP39dFdfamVlugC,2026,1
+1,1,1,Sistemas Operativos - Procesos,2025-04-02 14:00:00,95,Procesos,https://www.youtube.com/embed/dpLEgXcWtik?si=xsP39dFdfamVlugC,2025,1
+2,2,2,Matemática Aplicada - Series,2025-05-10 09:00:00,130,Series,https://www.youtube.com/embed/dpLEgXcWtik?si=xsP39dFdfamVlugC,2025,2
+3,3,3,Filosofía - Lenguajes,2026-04-09 14:00:00,100,Lenguajes,https://www.youtube.com/embed/dpLEgXcWtik?si=xsP39dFdfamVlugC,2026,1
+1,2,1,Sistemas Operativos - Memoria,2025-06-01 11:00:00,95,Memoria,https://www.youtube.com/embed/dpLEgXcWtik?si=xsP39dFdfamVlugC,2025,2
+2,1,2,Matemática Aplicada - Estructuras,2025-07-01 09:00:00,125,Estructuras,https://www.youtube.com/embed/dpLEgXcWtik?si=xsP39dFdfamVlugC,2025,1
+3,1,3,Filosofía - Teoría,2025-08-01 10:00:00,120,Teoría,https://www.youtube.com/embed/dpLEgXcWtik?si=xsP39dFdfamVlugC,2025,1
+1,3,1,Sistemas Operativos - Ruteo,2026-04-02 14:00:00,95,Ruteo,https://www.youtube.com/embed/dpLEgXcWtik?si=xsP39dFdfamVlugC,2026,2
+2,3,2,Matemática Aplicada - Probabilidades,2026-05-10 09:00:00,130,Probabilidades,https://www.youtube.com/embed/dpLEgXcWtik?si=xsP39dFdfamVlugC,2026,2
+3,3,3,Filosofía - Modernidad,2026-06-08 11:00:00,100,Modernidad,https://www.youtube.com/embed/dpLEgXcWtik?si=xsP39dFdfamVlugC,2026,2
+1,3,1,Sistemas Operativos - Seguridad,2026-09-01 16:00:00,100,Seguridad,https://www.youtube.com/embed/dpLEgXcWtik?si=xsP39dFdfamVlugC,2026,2
+2,3,2,Matemática Aplicada - Consultas,2026-08-08 10:00:00,115,Consultas,https://www.youtube.com/embed/dpLEgXcWtik?si=xsP39dFdfamVlugC,2026,2
+3,3,3,Filosofía - Pensadores,2026-07-09 09:00:00,85,Pensadores,https://www.youtube.com/embed/dpLEgXcWtik?si=xsP39dFdfamVlugC,2026,2
+1,3,1,Sistemas Operativos - Práctica,2026-10-05 13:00:00,140,Práctica,https://www.youtube.com/embed/dpLEgXcWtik?si=xsP39dFdfamVlugC,2026,2
+2,3,2,Matemática Aplicada - Taller,2026-10-12 13:00:00,135,Taller,https://www.youtube.com/embed/dpLEgXcWtik?si=xsP39dFdfamVlugC,2026,2

@@ -1,0 +1,6 @@
+testdata
+.git
+.gitignore
+.env
+*.md
+coverage.out

@@ -1,0 +1,44 @@
+@startuml
+' HeinzGomez - Vista de componentes: Segmentacion por capitulos
+!pragma layout smetana
+skinparam componentStyle rectangle
+
+package "Frontend (React + TS)" {
+  [ReproductorPage] as RP
+  [ChapterNav\n(ChapterBar / ChapterIndex)] as CN
+  [CapitulosModal\n(panel admin)] as CM
+  [VideoEmbed\n(YouTube IFrame API)] as VE
+}
+
+package "API Gateway (Express + TS)" {
+  [grab.routes\n/grab/clase/:id/capitulo(s)] as GR
+  [GrabacionesGrpcClient] as GC
+  [auth + role middleware] as MW
+}
+
+package "Servicio Grabaciones (Go)" {
+  [CapituloController] as CC
+  [CapituloService\n(validacion de rangos)] as CS
+  [CapituloRepository] as CR
+}
+
+database "PostgreSQL (grabdb)" {
+  [tabla capitulo] as TBL
+  [sp_registrar_capitulo] as SP
+  [trigger auditoria] as TG
+}
+
+RP --> CN
+RP --> VE
+CN ..> VE : seek(segundos)
+RP --> GR : REST/JSON (HTTP)
+CM --> GR : REST/JSON (HTTP)
+GR --> MW
+GR --> GC
+GC --> CC : gRPC / Protobuf
+CC --> CS
+CS --> CR
+CR --> SP
+SP --> TBL
+TBL ..> TG : AFTER INSERT/UPDATE/DELETE
+@enduml

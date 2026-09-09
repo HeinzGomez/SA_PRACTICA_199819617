@@ -1,0 +1,25 @@
+@startuml
+' HeinzGomez - Secuencia: Consulta y navegacion por capitulos en el reproductor
+autonumber
+actor "Estudiante" as U
+participant "ReproductorPage" as RP
+participant "ChapterBar /\nChapterIndex" as CN
+participant "VideoEmbed\n(YouTube API)" as VE
+participant "API Gateway\n/grab/clase/:id/capitulos" as GW
+participant "grab-service" as GS
+database "PostgreSQL" as DB
+
+U -> RP : Abre una clase grabada
+RP -> GW : GET /grab/clase/:id/capitulos
+GW -> GS : gRPC ConsultarCapitulosClase(id_clase)
+GS -> DB : SELECT ... ORDER BY tiempo_inicio
+DB --> GS : lista de capitulos
+GS --> GW : { capitulos }
+GW --> RP : 200 { capitulos }
+RP -> CN : render barra segmentada + indice
+U -> CN : Clic en un capitulo
+CN -> RP : onSeek(segundos)
+RP -> VE : seekRequest { segundos, nonce }
+VE -> VE : player.seekTo(segundos, true)
+VE -> U : El video salta a la marca
+@enduml

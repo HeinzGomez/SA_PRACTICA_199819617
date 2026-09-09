@@ -1,0 +1,191 @@
+syntax = "proto3";
+
+package historial;
+
+option go_package = "proto/historial";
+option java_package = "proto.historial";
+
+// ──────────────────────────────────────────────
+// Servicio principal de historial de reproducción
+// ──────────────────────────────────────────────
+service HistorialService {
+  // Progreso y checkpoint
+  rpc RegistrarProgreso(RegistrarProgresoRequest) returns (RegistrarProgresoResponse);
+  rpc ActualizarCheckpoint(ActualizarCheckpointRequest) returns (ActualizarCheckpointResponse);
+  rpc MarcarClaseCompletada(MarcarClaseCompletadaRequest) returns (MarcarClaseCompletadaResponse);
+
+  // Consultas
+  rpc ObtenerCheckpointClase(ObtenerCheckpointClaseRequest) returns (ObtenerCheckpointClaseResponse);
+  rpc ConsultarHistorialUsuario(ConsultarHistorialUsuarioRequest) returns (ConsultarHistorialUsuarioResponse);
+  rpc ConsultarEstadisticasUsuario(ConsultarEstadisticasUsuarioRequest) returns (ConsultarEstadisticasUsuarioResponse);
+
+  // Limpieza
+  rpc EliminarHistorialClase(EliminarHistorialClaseRequest) returns (EliminarHistorialClaseResponse);
+
+  // Auditoría
+  rpc ConsultarAuditLogs(ConsultarAuditLogsRequest) returns (ConsultarAuditLogsResponse);
+}
+
+// ──────────────────────────────────────────────
+// RegistrarProgreso (crea o actualiza el registro de reproducción)
+// ──────────────────────────────────────────────
+message RegistrarProgresoRequest {
+  int32 id_usuario = 1;      // Usuario que reproduce la clase
+  int32 id_clase = 2;        // Clase grabada reproducida
+  int32 id_tema = 3;         // Tema actual de la clase
+  int32 minuto_actual = 4;   // Minuto en el que va la reproducción
+  int32 duracion_total = 5;  // Duración total de la clase en minutos
+  int32 segundo_actual = 6;  // Segundo exacto dentro del minuto (0-59)
+}
+
+message RegistrarProgresoResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  HistorialReproduccion historial = 3;
+}
+
+// ──────────────────────────────────────────────
+// ActualizarCheckpoint (actualiza minuto y tema, conservando la duración)
+// ──────────────────────────────────────────────
+message ActualizarCheckpointRequest {
+  int32 id_usuario = 1;    // Usuario propietario del historial
+  int32 id_clase = 2;      // Clase grabada
+  int32 id_tema = 3;       // Nuevo tema actual
+  int32 minuto_actual = 4; // Nuevo minuto actual
+  int32 segundo_actual = 5; // Segundo exacto dentro del minuto (0-59)
+}
+
+message ActualizarCheckpointResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  CheckpointClase checkpoint = 3;
+}
+
+// ──────────────────────────────────────────────
+// MarcarClaseCompletada (marca 100% visto)
+// ──────────────────────────────────────────────
+message MarcarClaseCompletadaRequest {
+  int32 id_usuario = 1; // Usuario propietario del historial
+  int32 id_clase = 2;   // Clase grabada a marcar como completada
+}
+
+message MarcarClaseCompletadaResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  HistorialReproduccion historial = 3;
+}
+
+// ──────────────────────────────────────────────
+// ObtenerCheckpointClase (checkpoint del usuario en una clase)
+// ──────────────────────────────────────────────
+message ObtenerCheckpointClaseRequest {
+  int32 id_usuario = 1; // Usuario
+  int32 id_clase = 2;   // Clase grabada
+}
+
+message ObtenerCheckpointClaseResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  CheckpointClase checkpoint = 3;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarHistorialUsuario (historial completo, paginado)
+// ──────────────────────────────────────────────
+message ConsultarHistorialUsuarioRequest {
+  int32 id_usuario = 1;      // Usuario del que se consulta el historial
+  int32 pagina = 2;          // Página a consultar (10 registros por página)
+}
+
+message ConsultarHistorialUsuarioResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated HistorialReproduccion registros = 3;
+  int32 total_paginas = 4;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarEstadisticasUsuario (resumen de progreso)
+// ──────────────────────────────────────────────
+message ConsultarEstadisticasUsuarioRequest {
+  int32 id_usuario = 1; // Usuario
+}
+
+message ConsultarEstadisticasUsuarioResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  EstadisticasUsuario estadisticas = 3;
+}
+
+// ──────────────────────────────────────────────
+// EliminarHistorialClase (borra el registro de una clase)
+// ──────────────────────────────────────────────
+message EliminarHistorialClaseRequest {
+  int32 id_usuario = 1; // Usuario propietario del historial
+  int32 id_clase = 2;   // Clase grabada a eliminar del historial
+}
+
+message EliminarHistorialClaseResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+// ──────────────────────────────────────────────
+// ConsultarAuditLogs (paginado)
+// ──────────────────────────────────────────────
+message ConsultarAuditLogsRequest {
+  int32 pagina = 1;          // Página a consultar (10 registros por página)
+  int32 usuario_filtro = 2;  // Filtrar por usuario responsable (0 = todos)
+  string tabla_filtro = 3;   // Filtrar por tabla afectada (vacío = todas)
+}
+
+message ConsultarAuditLogsResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  repeated AuditLog registros = 3;
+  int32 total_paginas = 4;
+}
+
+// ──────────────────────────────────────────────
+// Mensajes compuestos (modelos)
+// ──────────────────────────────────────────────
+message HistorialReproduccion {
+  int32 id_historial = 1;
+  int32 id_usuario = 2;
+  int32 id_clase = 3;
+  int32 id_tema = 4;
+  int32 minuto_actual = 5;
+  int32 duracion_total = 6;
+  float porcentaje_visto = 7;              // 0.00 - 100.00
+  string fecha_ultima_reproduccion = 8;
+  string fecha_creacion = 9;
+  string fecha_actualizacion = 10;
+  bool completada = 11;
+  int32 segundo_actual = 12;               // Segundo exacto dentro del minuto (0-59)
+}
+
+message CheckpointClase {
+  int32 id_tema = 1;
+  int32 minuto_actual = 2;
+  float porcentaje_visto = 3;
+  bool completada = 4;
+  string fecha_ultima_reproduccion = 5;
+  int32 segundo_actual = 6;                // Segundo exacto dentro del minuto (0-59)
+}
+
+message EstadisticasUsuario {
+  int32 total_clases = 1;         // Clases con algún progreso
+  int32 clases_completadas = 2;   // Clases al 100%
+  float porcentaje_promedio = 3;  // Promedio de porcentaje visto
+  int32 minutos_vistos = 4;       // Suma de minutos actuales registrados
+}
+
+message AuditLog {
+  int32 id_auditoria = 1;
+  int32 usuario_responsable = 2;
+  string operacion = 3;
+  string tabla_afectada = 4;
+  string fecha_evento = 5;
+  string estado_anterior = 6; // JSON serializado
+  string estado_nuevo = 7;    // JSON serializado
+}

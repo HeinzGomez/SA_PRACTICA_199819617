@@ -1,0 +1,24 @@
+@startsalt
+' HeinzGomez - Mockup: Reproductor con barra segmentada e indice de capitulos
+{
+  {* YoUSAC | Catalogo | Mis Cursos | Historial }
+  {
+    {
+      {#
+        .
+        "        [ REPRODUCTOR DE VIDEO ]        "
+        .
+      }
+      "Barra segmentada por capitulos:"
+      {/ Intro | Fundamentos | Codigo | Dudas }
+      { + [Calificar clase] ***** }
+    } |
+    {^"Capitulos"
+      "00:00  Introduccion"
+      "12:30  Fundamentos teoricos"
+      "35:10  Ejemplo en codigo"
+      "55:00  Resolucion de dudas"
+    }
+  }
+}
+@endsalt
