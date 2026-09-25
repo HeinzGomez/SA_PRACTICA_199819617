@@ -1,0 +1,104 @@
+// HeinzGomez - Práctica 7: contrato gRPC del Servicio de Certificados (CDU 3.4 - 3.7 y CDU 4.x)
+syntax = "proto3";
+
+package academix.certificados.v1;
+
+option go_package = "github.com/academix/reservas-service/gen/certificadosv1;certificadosv1";
+
+service CertificadosService {
+  // CDU 3.6 - Obtener preguntas del examen (sin respuestas correctas)
+  rpc ObtenerExamen(ExamenRequest) returns (Examen);
+  // CDU 3.6 - Calificar
+  rpc RendirExamen(RespuestasExamen) returns (ResultadoExamen);
+  // CDU 3.7 - Emitir diploma con firma Ed25519 y hash SHA-256
+  rpc GenerarCertificado(SolicitudCertificado) returns (Certificado);
+  // CDU 4.1 / 4.2 - Consulta con filtros
+  rpc ListarCertificados(FiltroCertificados) returns (ListaCertificados);
+  // CDU 4.3 / 4.4 - Verificación pública por id o hash
+  rpc VerificarCertificado(VerificarRequest) returns (VerificacionResponse);
+}
+
+message ExamenRequest {
+  string evento_id = 1;
+  string usuario_id = 2;
+}
+
+message Opcion {
+  string id = 1;
+  string texto = 2;
+}
+
+message Pregunta {
+  string id = 1;
+  string enunciado = 2;
+  repeated Opcion opciones = 3;
+}
+
+message Examen {
+  string evento_id = 1;
+  repeated Pregunta preguntas = 2;
+  int32 nota_minima = 3;
+}
+
+message Respuesta {
+  string pregunta_id = 1;
+  string opcion_id = 2;
+}
+
+message RespuestasExamen {
+  string usuario_id = 1;
+  string evento_id = 2;
+  repeated Respuesta respuestas = 3;
+}
+
+message ResultadoExamen {
+  string intento_id = 1;
+  bool aprobado = 2;
+  int32 nota = 3;
+  int32 correctas = 4;
+  int32 total = 5;
+}
+
+message SolicitudCertificado {
+  string usuario_id = 1;
+  string evento_id = 2;
+  string nombre_estudiante = 3;
+  string evento_titulo = 4;
+  string curso_codigo = 5;
+  string curso_nombre = 6;
+}
+
+message Certificado {
+  string id = 1;
+  string codigo_hash = 2;   // SHA-256 del payload canónico
+  string firma = 3;         // Ed25519 (base64)
+  string usuario_id = 4;
+  string nombre_estudiante = 5;
+  string evento_id = 6;
+  string evento_titulo = 7;
+  string curso_codigo = 8;
+  string curso_nombre = 9;
+  int32 nota = 10;
+  string emitido_en = 11;
+}
+
+message FiltroCertificados {
+  string usuario_id = 1;
+  string curso_codigo = 2;
+  string fecha_desde = 3;
+  string fecha_hasta = 4;
+}
+
+message ListaCertificados {
+  repeated Certificado certificados = 1;
+}
+
+message VerificarRequest {
+  string codigo = 1; // id o hash
+}
+
+message VerificacionResponse {
+  bool valido = 1;
+  string mensaje = 2;
+  Certificado certificado = 3;
+}
