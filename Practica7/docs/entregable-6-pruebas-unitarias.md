@@ -52,4 +52,5 @@ cd frontend && npm ci && npm test
 
 ## Evidencia
 
-- Salida de las suites en el pipeline (artifacts `cobertura-*`): `[PEGAR AQUÍ]`
+- Salida de las suites en el pipeline (artifacts `cobertura-*`): 
+  - [![image.png](https://i.postimg.cc/YCsdQ91C/image.png)](https://postimg.cc/LJjkpmCc)

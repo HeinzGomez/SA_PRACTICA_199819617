@@ -1,6 +1,7 @@
 # YOUSAC Academix Pass & CertiHub — Mini-proyecto (Práctica 7)
 
-<!-- HeinzGomez - Práctica 7: README del mini-proyecto (entregables 3 a 6) -->
+**Frontend en Vercel:**
+https://sa-practica-199819617-r9295g3sg-usac3.vercel.app
 
 Sistema satélite de YOUSAC para la **inscripción en ráfaga** a talleres, conferencias, laboratorios y exámenes de certificación, y para la **emisión y verificación pública de diplomas digitales firmados**. Está construido con una **Arquitectura Orientada a Servicios (SOA)**: los servicios de negocio se comunican por **gRPC** (contratos Protocol Buffers) y las transacciones críticas se desacoplan con **RabbitMQ**.
 
