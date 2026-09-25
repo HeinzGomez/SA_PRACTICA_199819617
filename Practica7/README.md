@@ -7,7 +7,7 @@ Sistema satélite de YOUSAC para la **inscripción en ráfaga** a talleres, conf
 | Entregable | Dónde está |
 |---|---|
 | 3. Código fuente del Backend y Frontend | `services/`, `frontend/`, `proto/` |
-| 4. Pipeline de CI (YAML) | `.github/workflows/ci.yml` · [docs/entregable-4-pipeline-ci.md](docs/entregable-4-pipeline-ci.md) |
+| 4. Pipeline de CI (YAML) | `.github/workflows/ci-practica7.yml` (raíz del repositorio) · [docs/entregable-4-pipeline-ci.md](docs/entregable-4-pipeline-ci.md) |
 | 5. Perfil de Container Registry | [docs/entregable-5-container-registry.md](docs/entregable-5-container-registry.md) · `docker-compose.registry.yml` |
 | 6. Suites de pruebas unitarias | `*/tests`, `*_test.go` · [docs/entregable-6-pruebas-unitarias.md](docs/entregable-6-pruebas-unitarias.md) |
 | Contrato REST, eventos y mocks | [docs/contrato-api.md](docs/contrato-api.md) |
@@ -46,20 +46,21 @@ Sistema satélite de YOUSAC para la **inscripción en ráfaga** a talleres, conf
 ## Estructura
 
 ```
-MiniProyecto/
-├── proto/                     Contratos gRPC (auth, talleres, reservas, certificados)
-├── services/
-│   ├── api-gateway/           Express + TypeScript (REST → gRPC, SSE de cupos)
-│   ├── auth-service/          TypeScript (registro, login, JWT)            :50051
-│   ├── talleres-service/      TypeScript (catálogo, CRUD, cupo en Redis)   :50052
-│   ├── reservas-service/      Go (ticketing, productor/consumidor RabbitMQ):50053
-│   └── certificados-service/  Python (examen, diploma firmado Ed25519)     :50054
-├── frontend/                  Next.js 15 (desplegado en Vercel)
-├── infra/postgres/init.sql    Una base de datos por servicio
-├── docker-compose.yml         Entorno completo de desarrollo
-├── docker-compose.registry.yml  Mismo entorno usando las imágenes de GHCR
-├── scripts/test-all.(sh|ps1)  Ejecuta todas las suites de pruebas
-└── .github/workflows/ci.yml   Pipeline de CI
+SA_PRACTICA_199819617/
+├── .github/workflows/ci-practica7.yml   Pipeline de CI (GitHub solo lee workflows en la raíz)
+└── Practica7/
+    ├── proto/                     Contratos gRPC (auth, talleres, reservas, certificados)
+    ├── services/
+    │   ├── api-gateway/           Express + TypeScript (REST → gRPC, SSE de cupos)
+    │   ├── auth-service/          TypeScript (registro, login, JWT)            :50051
+    │   ├── talleres-service/      TypeScript (catálogo, CRUD, cupo en Redis)   :50052
+    │   ├── reservas-service/      Go (ticketing, productor/consumidor RabbitMQ):50053
+    │   └── certificados-service/  Python (examen, diploma firmado Ed25519)     :50054
+    ├── frontend/                  Next.js 15 (desplegado en Vercel)
+    ├── infra/postgres/init.sql    Una base de datos por servicio
+    ├── docker-compose.yml         Entorno completo de desarrollo
+    ├── docker-compose.registry.yml  Mismo entorno usando las imágenes de GHCR
+    └── scripts/test-all.(sh|ps1)  Ejecuta todas las suites de pruebas
 ```
 
 ## Ejecución local
@@ -83,7 +84,7 @@ Cuentas del mock: `demo@ingenieria.usac.edu.gt / Demo12345` (estudiante) y `admi
 ## Despliegue del frontend en Vercel
 
 1. En Vercel: **Add New → Project → Import** el repositorio de GitHub.
-2. **Root Directory:** `frontend` (si el repositorio contiene la carpeta `MiniProyecto`, usar `MiniProyecto/frontend`). Framework: Next.js (se detecta solo).
+2. **Root Directory:** `Practica7/frontend`. Framework: Next.js (se detecta solo).
 3. Variables de entorno: ninguna para el modo mock. Para apuntar a un backend real, `NEXT_PUBLIC_API_URL=https://<gateway>`.
 4. Deploy. Cada push a `main` genera un despliegue de producción y cada PR un *preview*.
 
