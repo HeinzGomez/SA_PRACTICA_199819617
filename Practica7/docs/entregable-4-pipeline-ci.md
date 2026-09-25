@@ -54,5 +54,8 @@ Cada job sube su cobertura como *artifact* (`cobertura-go`, `cobertura-auth-serv
 
 ## Evidencia
 
-- Ejecución exitosa del pipeline: `[PEGAR AQUÍ captura de Actions con todos los jobs en verde]`
-- Enlace a la ejecución: `[PEGAR AQUÍ https://github.com/<owner>/<repo>/actions/runs/<id>]`
+- Ejecución exitosa del pipeline: 
+  - Develop: 
+    - [![Actions-en-verde-Develop.jpg](https://i.postimg.cc/QMcdcFR5/Actions-en-verde-Develop.jpg)](https://postimg.cc/qtMrTvBM)
+  - Main:
+    - [![Actions-en-verde-Main.jpg](https://i.postimg.cc/QMgjHRTk/Actions-en-verde-Main.jpg)](https://postimg.cc/p9dwSckp)
