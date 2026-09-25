@@ -40,5 +40,7 @@ docker compose -f docker-compose.yml -f docker-compose.registry.yml up -d --no-b
 
 ## Evidencia
 
-- Captura del perfil con los 6 paquetes: `[PEGAR AQUÍ]`
-- Captura de las versiones/tags de un paquete (ej. `academix-reservas-service`): `[PEGAR AQUÍ]`
+- Captura del perfil con los 6 paquetes: 
+  - [![Packages.jpg](https://i.postimg.cc/NfyY1yXf/Packages.jpg)](https://postimg.cc/SJpw4xVw)
+- Captura de las versiones/tags de un paquete (ej. `academix-auth-service`):
+[![image.png](https://i.postimg.cc/7hdFBV2p/image.png)](https://postimg.cc/xNGp8LgR)
