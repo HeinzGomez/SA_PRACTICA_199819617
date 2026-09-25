@@ -2,7 +2,9 @@
 
 <!-- HeinzGomez - Práctica 7: documentación del pipeline de CI -->
 
-Archivo: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) (validado con `actionlint`).
+Archivo: [`.github/workflows/ci-practica7.yml`](../../.github/workflows/ci-practica7.yml) en la **raíz** del repositorio `SA_PRACTICA_199819617` (GitHub solo ejecuta workflows ubicados ahí), validado con `actionlint`.
+
+Como el repositorio contiene todas las prácticas, las rutas llevan el prefijo `Practica7/` y el workflow tiene filtro `paths`: solo se ejecuta cuando cambia algo dentro de `Practica7/` o el propio workflow (los tags `V*` siempre lo disparan).
 
 ## Disparadores
 
@@ -47,7 +49,7 @@ Cada job sube su cobertura como *artifact* (`cobertura-go`, `cobertura-auth-serv
 ## Configuración requerida en GitHub (una sola vez)
 
 1. **Settings → Actions → General → Workflow permissions → Read and write permissions** (permite que `GITHUB_TOKEN` publique paquetes).
-2. Proteger `main` y `develop` (Settings → Branches) exigiendo que el check **CI - Academix Pass** pase antes de fusionar un PR.
+2. Proteger `main` y `develop` (Settings → Branches) exigiendo que los checks del workflow **CI - Practica 7 Academix Pass** pase antes de fusionar un PR.
 3. Tras la primera publicación, hacer públicos los paquetes (ver entregable 5).
 
 ## Evidencia
