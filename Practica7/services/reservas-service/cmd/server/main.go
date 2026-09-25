@@ -79,6 +79,8 @@ func main() {
 			})
 			if err != nil {
 				log.Printf("[worker %d] detenido: %v", n, err)
+			} else {
+				log.Printf("[worker %d] detenido por apagado del servicio", n)
 			}
 		}(i)
 	}
