@@ -214,7 +214,7 @@ jobs:
         with:
           context: Practica8
           file: ${{ matrix.imagen.dockerfile }}
-          push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/tags/')) }}
+          push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/release' || startsWith(github.ref, 'refs/tags/')) }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.imagen.nombre }}
@@ -229,12 +229,21 @@ jobs:
     name: Deploy CD a la VM (docker compose pull)
     runs-on: ubuntu-latest
     needs: [build-and-push]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/release')
     permissions:
       contents: read
       packages: read
     steps:
       - uses: actions/checkout@v4
+      - name: Pre-limpieza de init.sql (Evita error Is a directory)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            sudo rm -rf "${{ secrets.VM_PROJECT_PATH }}/infra"
+
       - name: Copiar docker-compose.cloud.yml e init.sql a la VM
         uses: appleboy/scp-action@v0.1.7
         with:
