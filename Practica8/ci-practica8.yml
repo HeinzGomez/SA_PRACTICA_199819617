@@ -235,6 +235,15 @@ jobs:
       packages: read
     steps:
       - uses: actions/checkout@v4
+      - name: Pre-limpieza de init.sql (Evita error Is a directory)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            rm -rf "${{ secrets.VM_PROJECT_PATH }}/infra/postgres/init.sql"
+
       - name: Copiar docker-compose.cloud.yml e init.sql a la VM
         uses: appleboy/scp-action@v0.1.7
         with:
