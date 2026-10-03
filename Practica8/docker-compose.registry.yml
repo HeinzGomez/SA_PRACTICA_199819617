@@ -1,0 +1,23 @@
+# HeinzGomez - Práctica 7: usa las imágenes publicadas por el pipeline en GitHub Container Registry.
+#   export GHCR_OWNER=<usuario-github-en-minusculas> IMAGE_TAG=latest
+#   docker compose -f docker-compose.yml -f docker-compose.registry.yml pull
+#   docker compose -f docker-compose.yml -f docker-compose.registry.yml up -d --no-build
+services:
+  auth-service:
+    image: ghcr.io/${GHCR_OWNER:?definir GHCR_OWNER}/academix-auth-service:${IMAGE_TAG:-latest}
+    pull_policy: always
+  talleres-service:
+    image: ghcr.io/${GHCR_OWNER:?definir GHCR_OWNER}/academix-talleres-service:${IMAGE_TAG:-latest}
+    pull_policy: always
+  reservas-service:
+    image: ghcr.io/${GHCR_OWNER:?definir GHCR_OWNER}/academix-reservas-service:${IMAGE_TAG:-latest}
+    pull_policy: always
+  certificados-service:
+    image: ghcr.io/${GHCR_OWNER:?definir GHCR_OWNER}/academix-certificados-service:${IMAGE_TAG:-latest}
+    pull_policy: always
+  api-gateway:
+    image: ghcr.io/${GHCR_OWNER:?definir GHCR_OWNER}/academix-api-gateway:${IMAGE_TAG:-latest}
+    pull_policy: always
+  frontend:
+    image: ghcr.io/${GHCR_OWNER:?definir GHCR_OWNER}/academix-frontend:${IMAGE_TAG:-latest}
+    pull_policy: always

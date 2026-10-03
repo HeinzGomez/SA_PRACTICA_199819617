@@ -1,0 +1,76 @@
+// HeinzGomez - Práctica 7: contrato gRPC del Servicio de Talleres / Eventos académicos (CDU 2.x)
+syntax = "proto3";
+
+package academix.talleres.v1;
+
+option go_package = "github.com/academix/reservas-service/gen/talleresv1;talleresv1";
+
+service TalleresService {
+  // CDU 2.1 / 2.2 - Consulta y filtro por curso y fecha
+  rpc ListarEventos(ListarEventosRequest) returns (ListaEventos);
+  // CDU 2.3 - Detalle de ponente y prerrequisitos
+  rpc ObtenerEvento(EventoId) returns (Evento);
+  // CDU 2.4 - Cupo en tiempo real (lee el contador atómico de Redis)
+  rpc ObtenerCupos(CuposRequest) returns (CuposResponse);
+  // CDU 2.6 / 2.7 / 2.8 - Administración
+  rpc CrearEvento(Evento) returns (Evento);
+  rpc ActualizarEvento(Evento) returns (Evento);
+  rpc EliminarEvento(EventoId) returns (EliminarResponse);
+}
+
+message Ponente {
+  string nombre = 1;
+  string titulo = 2;
+  string bio = 3;
+  string correo = 4;
+}
+
+message Evento {
+  string id = 1;
+  string titulo = 2;
+  string descripcion = 3;
+  string tipo = 4;           // TALLER | CONFERENCIA | LABORATORIO | CERTIFICACION
+  string curso_codigo = 5;   // Curso de YOUSAC al que se vincula
+  string curso_nombre = 6;
+  string fecha_inicio = 7;   // ISO-8601
+  int32 duracion_min = 8;
+  string lugar = 9;
+  int32 cupo_total = 10;
+  int32 cupo_disponible = 11;
+  Ponente ponente = 12;
+  repeated string prerrequisitos = 13;
+  bool tiene_certificacion = 14;
+}
+
+message ListarEventosRequest {
+  string curso_codigo = 1;
+  string fecha_desde = 2;
+  string fecha_hasta = 3;
+  string tipo = 4;
+}
+
+message ListaEventos {
+  repeated Evento eventos = 1;
+}
+
+message EventoId {
+  string id = 1;
+}
+
+message EliminarResponse {
+  bool eliminado = 1;
+}
+
+message CuposRequest {
+  repeated string evento_ids = 1; // vacío = todos
+}
+
+message Cupo {
+  string evento_id = 1;
+  int32 cupo_total = 2;
+  int32 cupo_disponible = 3;
+}
+
+message CuposResponse {
+  repeated Cupo cupos = 1;
+}

@@ -1,0 +1,50 @@
+// HeinzGomez - Práctica 7: contrato gRPC del Servicio de Autenticación (CDU 1.x)
+syntax = "proto3";
+
+package academix.auth.v1;
+
+option go_package = "github.com/academix/reservas-service/gen/authv1;authv1";
+
+service AuthService {
+  // CDU 1.2 - Registro de datos
+  rpc Register(RegisterRequest) returns (AuthResponse);
+  // CDU 1.3 - Validación de credenciales
+  rpc Login(LoginRequest) returns (AuthResponse);
+  // Usado por el API Gateway para validar el JWT en cada petición
+  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+}
+
+message Usuario {
+  string id = 1;
+  string nombre = 2;
+  string carnet = 3;
+  string correo = 4;
+  string rol = 5; // ESTUDIANTE | ADMINISTRADOR
+}
+
+message RegisterRequest {
+  string nombre = 1;
+  string carnet = 2;
+  string correo = 3;
+  string password = 4;
+  string rol = 5;
+}
+
+message LoginRequest {
+  string correo = 1;
+  string password = 2;
+}
+
+message AuthResponse {
+  string token = 1;
+  Usuario usuario = 2;
+}
+
+message ValidateTokenRequest {
+  string token = 1;
+}
+
+message ValidateTokenResponse {
+  bool valido = 1;
+  Usuario usuario = 2;
+}
