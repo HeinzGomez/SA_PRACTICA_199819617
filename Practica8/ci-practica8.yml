@@ -241,9 +241,10 @@ jobs:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USERNAME }}
           key: ${{ secrets.VM_SSH_KEY }}
-          source: Practica8/docker-compose.cloud.yml
+          source: Practica8/docker-compose.cloud.yml,Practica8/infra/postgres/init.sql
           target: ${{ secrets.VM_PROJECT_PATH }}
           strip_components: 1
+          overwrite: true
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
