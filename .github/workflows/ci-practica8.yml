@@ -244,6 +244,7 @@ jobs:
           source: Practica8/docker-compose.cloud.yml,Practica8/infra/postgres/init.sql
           target: ${{ secrets.VM_PROJECT_PATH }}
           strip_components: 1
+          overwrite: true
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
