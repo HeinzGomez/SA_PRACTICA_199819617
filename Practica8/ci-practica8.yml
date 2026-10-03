@@ -235,13 +235,13 @@ jobs:
       packages: read
     steps:
       - uses: actions/checkout@v4
-      - name: Copiar docker-compose.cloud.yml a la VM
+      - name: Copiar docker-compose.cloud.yml e init.sql a la VM
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USERNAME }}
           key: ${{ secrets.VM_SSH_KEY }}
-          source: Practica8/docker-compose.cloud.yml
+          source: Practica8/docker-compose.cloud.yml,Practica8/infra/postgres/init.sql
           target: ${{ secrets.VM_PROJECT_PATH }}
           strip_components: 1
       - name: Deploy via SSH
