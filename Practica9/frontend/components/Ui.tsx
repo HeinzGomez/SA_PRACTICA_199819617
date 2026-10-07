@@ -8,7 +8,7 @@ import { nivelCupo } from '@/lib/formato';
 import { ApiError, type Cupo, type Rol } from '@/lib/types';
 
 export function Encabezado() {
-  const { sesion, cerrar, api } = useSesion();
+  const { sesion, cerrar } = useSesion();
   const ruta = usePathname();
   const router = useRouter();
   const enlaces: [string, string, boolean][] = [
@@ -22,11 +22,7 @@ export function Encabezado() {
   const activo = (href: string) => (href === '/' ? ruta === '/' || ruta.startsWith('/eventos') : ruta.startsWith(href));
   return (
     <>
-      <div className={`banda-modo ${api.modo === 'api' ? 'api' : ''}`}>
-        {api.modo === 'api'
-          ? 'Conectado al API Gateway (servicios SOA + RabbitMQ)'
-          : 'Modo demostración: consumiendo mocks del contrato REST documentado (sin backend)'}
-      </div>
+      <div className="banda-modo api">Conectado al API Gateway (servicios SOA + RabbitMQ)</div>
       <header className="header">
         <div className="contenedor">
           <Link href="/" className="marca">
@@ -100,7 +96,7 @@ export function BarraCupo({ disponible, total, compacta = false }: { disponible:
   );
 }
 
-/** Suscripción al cupo en tiempo real (SSE en modo API, intervalo en modo mock). */
+/** Suscripción al cupo en tiempo real (SSE publicado por el API Gateway). */
 export function useCupos(): Map<string, Cupo> {
   const { api } = useSesion();
   const [cupos, setCupos] = useState<Map<string, Cupo>>(new Map());

@@ -15,7 +15,7 @@ const (
 )
 
 const (
-	TipoAcreditacion       = "ACREDITACION"
+	TipoAcreditacion        = "ACREDITACION"
 	TipoExamenCertificacion = "EXAMEN_CERTIFICACION"
 )
 
@@ -26,6 +26,19 @@ const (
 	RKReservaRechazada  = "reserva.rechazada"
 )
 
+// Routing keys de entrada desde el API Gateway (exchange direct "academix.rpc";
+// antes eran los métodos del contrato proto).
+const (
+	RKSolicitarReserva      = "reservas.solicitar"
+	RKConsultarTicket       = "reservas.consultar_ticket"
+	RKListarReservasUsuario = "reservas.listar_usuario"
+)
+
+// RoutingKeysRPC devuelve las operaciones que este servicio expone al API Gateway.
+func RoutingKeysRPC() []string {
+	return []string{RKSolicitarReserva, RKConsultarTicket, RKListarReservasUsuario}
+}
+
 // Motivos de rechazo
 const (
 	MotivoSinCupo        = "SIN_CUPO"
@@ -35,8 +48,8 @@ const (
 )
 
 var (
-	ErrDatosInvalidos    = errors.New("usuario_id y evento_id son obligatorios")
-	ErrTicketNoExiste    = errors.New("ticket no encontrado")
+	ErrDatosInvalidos     = errors.New("usuario_id y evento_id son obligatorios")
+	ErrTicketNoExiste     = errors.New("ticket no encontrado")
 	ErrBrokerNoDisponible = errors.New("broker de mensajería no disponible")
 )
 

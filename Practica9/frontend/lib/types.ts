@@ -1,4 +1,4 @@
-// HeinzGomez - Práctica 7: tipos del contrato REST del API Gateway (espejo de los .proto)
+// HeinzGomez - Práctica 9: tipos del contrato REST del API Gateway (docs/contrato-api.md)
 export type Rol = 'ESTUDIANTE' | 'ADMINISTRADOR';
 export type TipoEvento = 'TALLER' | 'CONFERENCIA' | 'LABORATORIO' | 'CERTIFICACION';
 export type EstadoTicket = 'PENDIENTE' | 'CONFIRMADA' | 'RECHAZADA';
@@ -71,6 +71,31 @@ export interface Pregunta { id: string; enunciado: string; opciones: Opcion[] }
 export interface Examen { evento_id: string; preguntas: Pregunta[]; nota_minima: number }
 export interface ResultadoExamen { intento_id: string; aprobado: boolean; nota: number; correctas: number; total: number }
 
+// --- administración de exámenes (solo ADMINISTRADOR, por el broker)
+export interface OpcionNueva { texto: string; es_correcta?: boolean }
+export interface SolicitudExamen { evento_id: string; titulo: string; puntaje_minimo?: number; estado?: string }
+export interface PreguntaCreada {
+  id_pregunta: string | number;
+  id_examen: number;
+  enunciado: string;
+  punteo: number;
+  opciones: { id_opcion: string; texto: string; es_correcta: boolean }[];
+}
+export interface ExamenAdmin {
+  id_examen: number;
+  evento_id: string;
+  titulo: string;
+  puntaje_minimo: number;
+  estado: string;
+  preguntas: PreguntaCreada[];
+}
+export interface SolicitudPregunta {
+  id_examen: number;
+  enunciado: string;
+  opciones: OpcionNueva[];
+  punteo?: number;
+}
+
 export interface Certificado {
   id: string;
   codigo_hash: string;
@@ -90,7 +115,7 @@ export interface FiltroCertificados { curso?: string; desde?: string; hasta?: st
 export interface Verificacion {
   valido: boolean;
   mensaje: string;
-  certificado?: Certificado | null;
+  certificado: Certificado | null;
 }
 
 export interface RegistroInput {
@@ -108,7 +133,6 @@ export class ApiError extends Error {
 }
 
 export interface Api {
-  readonly modo: 'mock' | 'api';
   login(correo: string, password: string): Promise<Sesion>;
   register(input: RegistroInput): Promise<Sesion>;
   listarEventos(f?: FiltroEventos): Promise<Evento[]>;
@@ -123,6 +147,10 @@ export interface Api {
   misReservas(token: string): Promise<Ticket[]>;
   obtenerExamen(token: string, eventoId: string): Promise<Examen>;
   rendirExamen(token: string, eventoId: string, respuestas: Record<string, string>): Promise<ResultadoExamen>;
+  /** Examen de la actividad con sus respuestas correctas (solo ADMINISTRADOR; 404 si no existe). */
+  obtenerExamenAdmin(token: string, eventoId: string): Promise<ExamenAdmin>;
+  crearExamen(token: string, e: SolicitudExamen): Promise<ExamenAdmin>;
+  agregarPregunta(token: string, e: SolicitudPregunta): Promise<PreguntaCreada>;
   generarCertificado(token: string, eventoId: string): Promise<Certificado>;
   misCertificados(token: string, f?: FiltroCertificados): Promise<Certificado[]>;
   verificar(codigo: string): Promise<Verificacion>;

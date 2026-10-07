@@ -26,7 +26,6 @@ foreach ($s in "auth-service", "talleres-service", "api-gateway") {
 }
 Suite "pytest - certificados-service" "services/certificados-service" @(
   "python -m pip install -q -r requirements-dev.txt",
-  "python -m grpc_tools.protoc -I../../proto --python_out=app/gen --grpc_python_out=app/gen ../../proto/certificados.proto",
   "python -m pytest --cov=app"
 )
 Suite "Jest - frontend" "frontend" @("npm ci", "npm test")

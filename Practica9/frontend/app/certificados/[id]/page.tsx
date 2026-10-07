@@ -15,7 +15,11 @@ function Vista() {
   const [error, setError] = useState<unknown>(null);
 
   useEffect(() => {
-    api.misCertificados(sesion!.token).then((l) => setCert(l.find((c) => c.id === id) ?? null)).catch(setError);
+    let vivo = true;
+    api.misCertificados(sesion!.token)
+      .then((l) => { if (vivo) setCert((l ?? []).find((c) => c.id === id) ?? null); })
+      .catch((e) => { if (vivo) setError(e); });
+    return () => { vivo = false; };
   }, [api, sesion, id]);
 
   if (error) return <Alerta error={error} />;
@@ -26,7 +30,7 @@ function Vista() {
       <div className="fila entre no-imprimir">
         <Link href="/certificados" className="pequeno">← Mis diplomas</Link>
         <div className="fila">
-          <Link href={`/verificar?codigo=${cert.id}`} className="btn secundario chico">Verificar</Link>
+          <Link href={`/verificar?codigo=${encodeURIComponent(cert.id)}`} className="btn secundario chico">Verificar</Link>
           <button className="btn chico" onClick={() => window.print()}>Imprimir / PDF</button>
         </div>
       </div>

@@ -1,16 +1,18 @@
-// HeinzGomez - Práctica 7: pruebas unitarias del Servicio de Autenticación (Jest)
-import * as grpc from '@grpc/grpc-js';
-import { AuthError, AuthService, InMemoryUsuarioRepository, publico } from '../src/auth.service';
-import { crearHandlers, toGrpcError } from '../src/grpc-handlers';
+// HeinzGomez - Práctica 9: pruebas unitarias del Servicio de Autenticación (Jest)
+import { AuthError } from '../src/types/errores';
+import { AuthService, publico } from '../src/service/auth.service';
+import { EnMemoriaUsuarioRepository } from '../src/repository/en-memoria-usuario.repository';
+import { AuthController } from '../src/controller/auth.controller';
+import { Manejadores, OPERACIONES, Respuesta } from '../src/types/mensajes';
 
 const cfg = { jwtSecret: 'test', jwtExpiresIn: '1h', dominiosPermitidos: ['ingenieria.usac.edu.gt'], bcryptRounds: 4 };
 const valido = { nombre: 'Heinz Gómez', carnet: '202010044', correo: 'Heinz@Ingenieria.usac.edu.gt', password: 'Segura123' };
 
 describe('AuthService', () => {
-  let repo: InMemoryUsuarioRepository;
+  let repo: EnMemoriaUsuarioRepository;
   let svc: AuthService;
   beforeEach(() => {
-    repo = new InMemoryUsuarioRepository();
+    repo = new EnMemoriaUsuarioRepository();
     svc = new AuthService(repo, cfg);
   });
 
@@ -52,7 +54,7 @@ describe('AuthService', () => {
   test('validateToken rechaza tokens alterados o de usuarios inexistentes', async () => {
     expect((await svc.validateToken('basura')).valido).toBe(false);
     const { token } = await svc.register(valido);
-    const otro = new AuthService(new InMemoryUsuarioRepository(), cfg);
+    const otro = new AuthService(new EnMemoriaUsuarioRepository(), cfg);
     expect((await otro.validateToken(token)).valido).toBe(false);
   });
 
@@ -62,24 +64,55 @@ describe('AuthService', () => {
   });
 });
 
-describe('grpc-handlers', () => {
-  test('mapea AuthError a códigos gRPC', () => {
-    expect(toGrpcError(new AuthError('UNAUTHENTICATED', 'x')).code).toBe(grpc.status.UNAUTHENTICATED);
-    expect(toGrpcError(new AuthError('ALREADY_EXISTS', 'x')).code).toBe(grpc.status.ALREADY_EXISTS);
-    expect(toGrpcError(new Error('boom')).code).toBe(grpc.status.INTERNAL);
+describe('controlador RPC del bus de mensajes', () => {
+  const crear = () => new AuthController(new AuthService(new EnMemoriaUsuarioRepository(), cfg)).manejadores();
+
+  const llamar = async (h: Manejadores, operacion: string, cuerpo: unknown): Promise<any> => {
+    let respuesta: Respuesta<any> | undefined;
+    await h[operacion]({ operacion, cuerpo, replyTo: 'cola-de-prueba', responder: async (r) => { respuesta = r; } });
+    return respuesta!;
+  };
+
+  test('expone exactamente las operaciones del contrato', () => {
+    const h = crear();
+    expect(Object.keys(h).sort()).toEqual([OPERACIONES.login, OPERACIONES.registro, OPERACIONES.validacion].sort());
+    expect(h['auth.operacion_inexistente']).toBeUndefined();
   });
 
-  test('Register/Login/ValidateToken responden por callback', async () => {
-    const h = crearHandlers(new AuthService(new InMemoryUsuarioRepository(), cfg));
-    const llamar = (m: string, request: any) =>
-      new Promise<{ err: any; res: any }>((resolve) => h[m]({ request }, (err, res) => resolve({ err, res })));
-    const reg = await llamar('Register', valido);
-    expect(reg.err).toBeNull();
-    const log = await llamar('Login', { correo: valido.correo, password: valido.password });
-    expect(log.res.token).toBeTruthy();
-    const bad = await llamar('Login', { correo: valido.correo, password: 'no' });
-    expect(bad.err.code).toBe(grpc.status.UNAUTHENTICATED);
-    const val = await llamar('ValidateToken', { token: log.res.token });
-    expect(val.res.valido).toBe(true);
+  test('registro, login y validación responden {ok:true,datos}', async () => {
+    const h = crear();
+    const reg = await llamar(h, OPERACIONES.registro, valido);
+    expect(reg.ok).toBe(true);
+    expect(reg.datos.usuario.correo).toBe('heinz@ingenieria.usac.edu.gt');
+
+    const log = await llamar(h, OPERACIONES.login, { correo: valido.correo, password: valido.password });
+    expect(log.ok).toBe(true);
+    expect(log.datos.token).toBeTruthy();
+
+    const val = await llamar(h, OPERACIONES.validacion, { token: log.datos.token });
+    expect(val).toMatchObject({ ok: true, datos: { valido: true } });
+    expect(val.datos.usuario.id).toBe(reg.datos.usuario.id);
+  });
+
+  test('los errores de negocio viajan como {ok:false,error:{codigo,mensaje}}', async () => {
+    const h = crear();
+    await llamar(h, OPERACIONES.registro, valido);
+
+    const mala = await llamar(h, OPERACIONES.login, { correo: valido.correo, password: 'no' });
+    expect(mala).toEqual({ ok: false, error: { codigo: 'UNAUTHENTICATED', mensaje: 'Credenciales incorrectas' } });
+
+    const dup = await llamar(h, OPERACIONES.registro, valido);
+    expect(dup).toMatchObject({ ok: false, error: { codigo: 'ALREADY_EXISTS' } });
+
+    const invalida = await llamar(h, OPERACIONES.registro, {});
+    expect(invalida).toMatchObject({ ok: false, error: { codigo: 'INVALID_ARGUMENT' } });
+
+    const tokenMalo = await llamar(h, OPERACIONES.validacion, { token: 'basura' });
+    expect(tokenMalo).toEqual({ ok: true, datos: { valido: false } });
+  });
+
+  test('AuthError conserva el código de dominio', () => {
+    expect(new AuthError('UNAUTHENTICATED', 'x').code).toBe('UNAUTHENTICATED');
+    expect(new Error('boom')).not.toBeInstanceOf(AuthError);
   });
 });

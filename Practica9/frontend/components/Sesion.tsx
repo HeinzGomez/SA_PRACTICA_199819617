@@ -1,5 +1,5 @@
 'use client';
-// HeinzGomez - Práctica 7: contexto de sesión (JWT del API Gateway o token del mock)
+// HeinzGomez - Práctica 9: contexto de sesión (JWT del API Gateway)
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { getApi } from '@/lib/api';
 import type { Api, Sesion } from '@/lib/types';

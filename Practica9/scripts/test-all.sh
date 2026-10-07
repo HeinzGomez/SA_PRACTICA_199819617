@@ -12,7 +12,7 @@ for s in auth-service talleres-service api-gateway; do
 done
 
 echo "== pytest · certificados-service"
-(cd "$RAIZ/services/certificados-service" && python -m pip install -q -r requirements-dev.txt && sh gen_proto.sh && python -m pytest --cov=app)
+(cd "$RAIZ/services/certificados-service" && python -m pip install -q -r requirements-dev.txt && python -m pytest --cov=app)
 
 echo "== Jest · frontend"
 (cd "$RAIZ/frontend" && npm ci --silent && npm test -- --silent)

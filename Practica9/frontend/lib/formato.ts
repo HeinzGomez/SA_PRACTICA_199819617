@@ -2,12 +2,17 @@
 import type { EstadoTicket, TipoEvento } from './types';
 
 const TZ = 'America/Guatemala';
+const SIN_DATO = '—';
+
+const valido = (iso: string) => typeof iso === 'string' && iso !== '' && !Number.isNaN(Date.parse(iso));
 
 export function fechaLarga(iso: string): string {
+  if (!valido(iso)) return SIN_DATO;
   return new Intl.DateTimeFormat('es-GT', { dateStyle: 'full', timeStyle: 'short', timeZone: TZ }).format(new Date(iso));
 }
 
 export function fechaCorta(iso: string): string {
+  if (!valido(iso)) return SIN_DATO;
   return new Intl.DateTimeFormat('es-GT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: TZ }).format(new Date(iso));
 }
 
@@ -43,5 +48,6 @@ export function nivelCupo(disponible: number, total: number): NivelCupo {
 }
 
 export function hashCorto(h: string): string {
+  if (!h) return SIN_DATO;
   return h.length > 20 ? `${h.slice(0, 10)}…${h.slice(-8)}` : h;
 }

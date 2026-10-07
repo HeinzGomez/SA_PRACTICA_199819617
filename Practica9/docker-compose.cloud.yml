@@ -1,6 +1,6 @@
 name: academix-cloud
 
-x-common: &grpc-common
+x-common: &comun
   restart: unless-stopped
   networks: [academix]
 
@@ -44,7 +44,7 @@ services:
     networks: [academix]
 
   auth-service:
-    <<: *grpc-common
+    <<: *comun
     image: ghcr.io/heinzgomez/academix-auth-service:${IMAGE_TAG:-latest}
     environment:
       DATABASE_URL: postgres://academix:${POSTGRES_PASSWORD:-academix}@postgres:5432/auth_db
@@ -57,7 +57,7 @@ services:
       rabbitmq: { condition: service_healthy }
 
   talleres-service:
-    <<: *grpc-common
+    <<: *comun
     image: ghcr.io/heinzgomez/academix-talleres-service:${IMAGE_TAG:-latest}
     environment:
       DATABASE_URL: postgres://academix:${POSTGRES_PASSWORD:-academix}@postgres:5432/talleres_db
@@ -69,7 +69,7 @@ services:
       rabbitmq: { condition: service_healthy }
 
   reservas-service:
-    <<: *grpc-common
+    <<: *comun
     image: ghcr.io/heinzgomez/academix-reservas-service:${IMAGE_TAG:-latest}
     environment:
       DATABASE_URL: postgres://academix:${POSTGRES_PASSWORD:-academix}@postgres:5432/reservas_db?sslmode=disable
@@ -83,7 +83,7 @@ services:
       talleres-service: { condition: service_started }
 
   certificados-service:
-    <<: *grpc-common
+    <<: *comun
     image: ghcr.io/heinzgomez/academix-certificados-service:${IMAGE_TAG:-latest}
     environment:
       DATABASE_URL: postgresql://academix:${POSTGRES_PASSWORD:-academix}@postgres:5432/certificados_db
@@ -94,13 +94,10 @@ services:
       rabbitmq: { condition: service_healthy }
 
   api-gateway:
-    <<: *grpc-common
+    <<: *comun
     image: ghcr.io/heinzgomez/academix-api-gateway:${IMAGE_TAG:-latest}
     environment:
-      AUTH_GRPC: auth-service:50051
-      TALLERES_GRPC: talleres-service:50052
-      RESERVAS_GRPC: reservas-service:50053
-      CERTIFICADOS_GRPC: certificados-service:50054
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
       VIRTUAL_HOST: academix.yo-usac.com
       LETSENCRYPT_HOST: academix.yo-usac.com

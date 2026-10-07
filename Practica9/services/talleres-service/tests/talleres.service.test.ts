@@ -1,19 +1,22 @@
-// HeinzGomez - Práctica 7: pruebas unitarias del Servicio de Talleres (Jest)
-import * as grpc from '@grpc/grpc-js';
-import { coincideFiltro, TalleresError, validarEvento } from '../src/domain';
-import { InMemoryCupoCache, InMemoryEventoRepository, TalleresService } from '../src/talleres.service';
-import { crearHandlers, toGrpcError } from '../src/grpc-handlers';
-import { EVENTOS_SEED } from '../src/seed';
+// HeinzGomez - Práctica 9: pruebas unitarias del Servicio de Talleres (Jest)
+import { TalleresError } from '../src/types/errores';
+import { coincideFiltro, validarEvento } from '../src/types/validaciones';
+import { EnMemoriaCupoCache } from '../src/repository/en-memoria-cupo.cache';
+import { EnMemoriaEventoRepository } from '../src/repository/en-memoria-evento.repository';
+import { EVENTOS_SEED } from '../src/repository/seed';
+import { TalleresService } from '../src/service/talleres.service';
+import { TalleresController } from '../src/controller/talleres.controller';
+import { Manejadores, OPERACIONES, Respuesta } from '../src/types/mensajes';
 
 function nuevo() {
-  const repo = new InMemoryEventoRepository(EVENTOS_SEED);
-  const cache = new InMemoryCupoCache();
+  const repo = new EnMemoriaEventoRepository(EVENTOS_SEED);
+  const cache = new EnMemoriaCupoCache();
   EVENTOS_SEED.forEach((e) => cache.cupos.set(e.id, e.cupo_total));
   return { repo, cache, svc: new TalleresService(repo, cache) };
 }
 
 const base = {
-  titulo: 'Nuevo taller de gRPC', tipo: 'TALLER' as const, curso_codigo: '0970', curso_nombre: 'Software Avanzado',
+  titulo: 'Nuevo taller de mensajería', tipo: 'TALLER' as const, curso_codigo: '0970', curso_nombre: 'Software Avanzado',
   fecha_inicio: '2026-11-01T15:00:00Z', duracion_min: 60, cupo_total: 30,
   ponente: { nombre: 'Ing. Prueba', titulo: '', bio: '', correo: 'p@x.com' },
 };
@@ -116,23 +119,48 @@ describe('CDU 2.6 / 2.7 / 2.8 administración', () => {
   });
 });
 
-describe('grpc-handlers', () => {
-  const llamar = (h: any, m: string, request: any) =>
-    new Promise<{ err: any; res: any }>((resolve) => h[m]({ request }, (err: any, res: any) => resolve({ err, res })));
+describe('controlador RPC del bus de mensajes', () => {
+  const crear = () => new TalleresController(nuevo().svc).manejadores();
 
-  test('expone todos los RPC del contrato', async () => {
-    const h = crearHandlers(nuevo().svc);
-    expect((await llamar(h, 'ListarEventos', { curso_codigo: '0970' })).res.eventos).toHaveLength(3);
-    expect((await llamar(h, 'ObtenerEvento', { id: 'evt-k8s-01' })).res.id).toBe('evt-k8s-01');
-    expect((await llamar(h, 'ObtenerCupos', { evento_ids: [] })).res.cupos).toHaveLength(EVENTOS_SEED.length);
-    const creado = (await llamar(h, 'CrearEvento', base)).res;
-    expect((await llamar(h, 'ActualizarEvento', { id: creado.id, cupo_total: 31 })).res.cupo_total).toBe(31);
-    expect((await llamar(h, 'EliminarEvento', { id: creado.id })).res.eliminado).toBe(true);
-    expect((await llamar(h, 'ObtenerEvento', { id: 'x' })).err.code).toBe(grpc.status.NOT_FOUND);
+  const llamar = async (h: Manejadores, operacion: string, cuerpo: unknown): Promise<any> => {
+    let respuesta: Respuesta<any> | undefined;
+    await h[operacion]({ operacion, cuerpo, replyTo: 'cola-de-prueba', responder: async (r) => { respuesta = r; } });
+    return respuesta!;
+  };
+
+  test('expone exactamente las operaciones del contrato', () => {
+    const h = crear();
+    expect(Object.keys(h).sort()).toEqual(Object.values(OPERACIONES).sort());
+    expect(h['talleres.operacion_inexistente']).toBeUndefined();
   });
 
-  test('toGrpcError', () => {
-    expect(toGrpcError(new TalleresError('FAILED_PRECONDITION', 'x')).code).toBe(grpc.status.FAILED_PRECONDITION);
-    expect(toGrpcError(new Error()).code).toBe(grpc.status.INTERNAL);
+  test('todas las operaciones responden {ok:true,datos}', async () => {
+    const h = crear();
+    const listar = await llamar(h, OPERACIONES.listarEventos, { curso_codigo: '0970' });
+    expect(listar.datos.eventos).toHaveLength(3);
+
+    const detalle = await llamar(h, OPERACIONES.obtenerEvento, { id: 'evt-k8s-01' });
+    expect(detalle.datos.id).toBe('evt-k8s-01');
+
+    const cupos = await llamar(h, OPERACIONES.obtenerCupos, { evento_ids: [] });
+    expect(cupos.datos.cupos).toHaveLength(EVENTOS_SEED.length);
+
+    const creado = (await llamar(h, OPERACIONES.crearEvento, base)).datos;
+    const editado = await llamar(h, OPERACIONES.actualizarEvento, { id: creado.id, cupo_total: 31 });
+    expect(editado.datos.cupo_total).toBe(31);
+    const borrado = await llamar(h, OPERACIONES.eliminarEvento, { id: creado.id });
+    expect(borrado.datos.eliminado).toBe(true);
+  });
+
+  test('los errores de negocio viajan como {ok:false,error:{codigo,mensaje}}', async () => {
+    const h = crear();
+    const noExiste = await llamar(h, OPERACIONES.obtenerEvento, { id: 'x' });
+    expect(noExiste).toEqual({ ok: false, error: { codigo: 'NOT_FOUND', mensaje: 'Evento x no existe' } });
+
+    const invalido = await llamar(h, OPERACIONES.crearEvento, {});
+    expect(invalido).toMatchObject({ ok: false, error: { codigo: 'INVALID_ARGUMENT' } });
+
+    expect(new TalleresError('FAILED_PRECONDITION', 'x').code).toBe('FAILED_PRECONDITION');
+    expect(new Error('boom')).not.toBeInstanceOf(TalleresError);
   });
 });

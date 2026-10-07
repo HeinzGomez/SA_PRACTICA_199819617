@@ -46,10 +46,7 @@
           }
         }
       ]
-    },
-    "setupFiles": [
-      "<rootDir>/tests/setup.ts"
-    ]
+    }
   },
   "engines": {
     "node": ">=20"

@@ -1,43 +1,133 @@
-// HeinzGomez - Práctica 7: pruebas unitarias del API Gateway con dobles de los servicios gRPC (Jest + supertest)
+// HeinzGomez - Práctica 9: pruebas unitarias del API Gateway con dobles de las operaciones RPC (Jest + supertest)
 import request from 'supertest';
 import http from 'http';
 import { AddressInfo } from 'net';
-import { createApp, httpStatus } from '../src/app';
-import { Servicios } from '../src/types';
+import { createApp } from '../src/app';
+import { httpStatus } from '../src/routes';
+import {
+  Certificado, Credenciales, Evento, FiltroCertificados, FiltroEventos, PreguntaExamen, Registro,
+  Servicios, SolicitudCertificado, SolicitudNuevaPregunta, SolicitudNuevoExamen, SolicitudReserva,
+  Ticket, UsuarioSesion,
+} from '../src/types';
 
-const estudiante = { id: 'u1', nombre: 'Heinz Gómez', carnet: '202010044', correo: 'h@ingenieria.usac.edu.gt', rol: 'ESTUDIANTE' };
-const admin = { ...estudiante, id: 'a1', rol: 'ADMINISTRADOR' };
-const evento = { id: 'evt-1', titulo: 'Taller K8s', curso_codigo: '0970', curso_nombre: 'Software Avanzado' };
-const grpcError = (code: number, details: string) => Object.assign(new Error(details), { code, details });
+const estudiante: UsuarioSesion = { id: 'u1', nombre: 'Heinz Gómez', carnet: '202010044', correo: 'h@ingenieria.usac.edu.gt', rol: 'ESTUDIANTE' };
+const admin: UsuarioSesion = { ...estudiante, id: 'a1', rol: 'ADMINISTRADOR' };
+
+const evento: Evento = {
+  id: 'evt-1',
+  titulo: 'Taller K8s',
+  descripcion: 'Orquestación con Kubernetes',
+  tipo: 'TALLER',
+  curso_codigo: '0970',
+  curso_nombre: 'Software Avanzado',
+  fecha_inicio: '2026-10-15T10:00:00Z',
+  duracion_min: 120,
+  lugar: 'Laboratorio 3',
+  cupo_total: 40,
+  cupo_disponible: 39,
+  ponente: { nombre: 'Dra. Pérez', titulo: 'Ingeniera', bio: 'Especialista en contenedores', correo: 'p@ingenieria.usac.edu.gt' },
+  prerrequisitos: ['0970'],
+  tiene_certificacion: true,
+};
+
+const pregunta: PreguntaExamen = {
+  id: 'p1',
+  enunciado: '¿Qué es un Pod?',
+  opciones: [{ id: 'o1', texto: 'Unidades de despliegue' }],
+};
+
+const ticket: Ticket = {
+  id: 'TKT-1',
+  usuario_id: 'u1',
+  evento_id: 'evt-1',
+  estado: 'PENDIENTE',
+  motivo: '',
+  tipo: 'ACREDITACION',
+  creado_en: '2026-10-01T00:00:00Z',
+  actualizado_en: '2026-10-01T00:00:00Z',
+  cupo_restante: 38,
+};
+
+const certificado: Certificado = {
+  id: 'CERT-1',
+  usuario_id: 'u1',
+  nombre_estudiante: 'Heinz Gómez',
+  evento_id: 'evt-1',
+  evento_titulo: 'Taller K8s',
+  curso_codigo: '0970',
+  curso_nombre: 'Software Avanzado',
+  nota: 95,
+  emitido_en: '2026-10-20T00:00:00Z',
+  codigo_hash: 'abc123',
+  firma: 'firma',
+};
+
+const errorDe = (code: string, mensaje: string) => Object.assign(new Error(mensaje), { code });
 
 function dobles(): Servicios {
   return {
     auth: {
-      Register: jest.fn(async (r) => ({ token: 't', usuario: { ...estudiante, correo: r.correo } })),
-      Login: jest.fn(async (r) => { if (r.password !== 'ok') throw grpcError(16, 'Credenciales incorrectas'); return { token: 'tok-est' }; }),
-      ValidateToken: jest.fn(async ({ token }) => (
-        token === 'tok-est' ? { valido: true, usuario: estudiante }
-          : token === 'tok-admin' ? { valido: true, usuario: admin } : { valido: false })),
+      registro: jest.fn(async (r: Registro) => ({ token: 't', usuario: { ...estudiante, correo: r.correo } })),
+      login: jest.fn(async (r: Credenciales) => {
+        if (r.password !== 'ok') throw errorDe('UNAUTHENTICATED', 'Credenciales incorrectas');
+        return { token: 'tok-est', usuario: estudiante };
+      }),
+      validarToken: jest.fn(async (r: { token: string }) => (
+        r.token === 'tok-est' ? { valido: true, usuario: estudiante }
+          : r.token === 'tok-admin' ? { valido: true, usuario: admin } : { valido: false }
+      )),
     },
     talleres: {
-      ListarEventos: jest.fn(async () => ({ eventos: [evento] })),
-      ObtenerEvento: jest.fn(async ({ id }) => { if (id !== 'evt-1') throw grpcError(5, 'Evento no existe'); return evento; }),
-      ObtenerCupos: jest.fn(async () => ({ cupos: [{ evento_id: 'evt-1', cupo_total: 40, cupo_disponible: 39 }] })),
-      CrearEvento: jest.fn(async (e) => ({ ...e, id: 'evt-2' })),
-      ActualizarEvento: jest.fn(async (e) => e),
-      EliminarEvento: jest.fn(async () => ({ eliminado: true })),
+      listarEventos: jest.fn(async (_d: FiltroEventos) => ({ eventos: [evento] })),
+      obtenerEvento: jest.fn(async (d: { id: string }) => {
+        if (d.id !== 'evt-1') throw errorDe('NOT_FOUND', 'Evento no existe');
+        return evento;
+      }),
+      obtenerCupos: jest.fn(async (_d: { evento_ids: string[] }) => ({ cupos: [{ evento_id: 'evt-1', cupo_total: 40, cupo_disponible: 39 }] })),
+      crearEvento: jest.fn(async (d: Partial<Evento>) => ({ ...evento, ...d, id: 'evt-2' })),
+      actualizarEvento: jest.fn(async (d: Partial<Evento>) => ({ ...evento, ...d })),
+      eliminarEvento: jest.fn(async (_d: { id: string }) => ({ eliminado: true })),
     },
     reservas: {
-      SolicitarReserva: jest.fn(async (r) => ({ id: 'TKT-1', usuario_id: r.usuario_id, evento_id: r.evento_id, estado: 'PENDIENTE' })),
-      ConsultarTicket: jest.fn(async ({ id }) => ({ id, usuario_id: id === 'TKT-OTRO' ? 'u9' : 'u1', estado: 'CONFIRMADA' })),
-      ListarReservasUsuario: jest.fn(async () => ({ tickets: [{ id: 'TKT-1' }] })),
+      solicitarReserva: jest.fn(async (d: SolicitudReserva) => ({ ...ticket, id: 'TKT-1', usuario_id: d.usuario_id, evento_id: d.evento_id, tipo: d.tipo })),
+      consultarTicket: jest.fn(async (d: { id: string }) => ({ ...ticket, id: d.id, usuario_id: d.id === 'TKT-OTRO' ? 'u9' : 'u1', estado: 'CONFIRMADA' })),
+      listarReservasUsuario: jest.fn(async (_d: { id: string }) => ({ tickets: [ticket] })),
     },
     certificados: {
-      ObtenerExamen: jest.fn(async () => ({ preguntas: [{ id: 'p1' }] })),
-      RendirExamen: jest.fn(async (r) => ({ aprobado: r.respuestas.length > 0, nota: 100 })),
-      GenerarCertificado: jest.fn(async (r) => ({ id: 'CERT-1', ...r })),
-      ListarCertificados: jest.fn(async () => ({ certificados: [{ id: 'CERT-1' }] })),
-      VerificarCertificado: jest.fn(async ({ codigo }) => ({ valido: codigo === 'CERT-1' })),
+      obtenerExamen: jest.fn(async (_d: { evento_id: string; usuario_id: string }) => ({ evento_id: 'evt-1', nota_minima: 60, preguntas: [pregunta] })),
+      rendirExamen: jest.fn(async (d: { usuario_id: string; evento_id: string; respuestas: { pregunta_id: string; opcion_id: string }[] }) => ({
+        intento_id: 'i1',
+        aprobado: d.respuestas.length > 0,
+        nota: 100,
+        correctas: 3,
+        total: 3,
+      })),
+      generarCertificado: jest.fn(async (d: SolicitudCertificado) => ({ ...certificado, ...d })),
+      listarCertificados: jest.fn(async (_d: FiltroCertificados) => ({ certificados: [certificado] })),
+      verificarCertificado: jest.fn(async (d: { codigo: string }) => ({
+        valido: d.codigo === 'CERT-1',
+        mensaje: d.codigo === 'CERT-1' ? 'Vigente' : 'No encontrado',
+        certificado: d.codigo === 'CERT-1' ? certificado : null,
+      })),
+      obtenerExamenAdmin: jest.fn(async (d: { evento_id: string }) => ({
+        id_examen: 7, evento_id: d.evento_id, titulo: 'Examen de certificación', puntaje_minimo: 60,
+        estado: 'ACTIVO', preguntas: [{ id_pregunta: 1, id_examen: 7, enunciado: '¿Cuál?', punteo: 20, opciones: [] }],
+      })),
+      crearExamen: jest.fn(async (d: SolicitudNuevoExamen) => ({
+        id_examen: 7,
+        evento_id: d.evento_id,
+        titulo: d.titulo,
+        puntaje_minimo: d.puntaje_minimo ?? 60,
+        estado: d.estado ?? 'ACTIVO',
+        preguntas: [],
+      })),
+      agregarPregunta: jest.fn(async (d: SolicitudNuevaPregunta) => ({
+        id_pregunta: 12,
+        id_examen: d.id_examen,
+        enunciado: d.enunciado,
+        punteo: d.punteo ?? 10,
+        opciones: [],
+      })),
     },
   };
 }
@@ -57,15 +147,19 @@ describe('salud, CORS y errores', () => {
     const no = await request(app).get('/health').set('Origin', 'https://malicioso.com');
     expect(no.headers['access-control-allow-origin']).toBeUndefined();
   });
-  test('ruta inexistente 404 y mapeo gRPC->HTTP', async () => {
+  test('ruta inexistente 404 y mapeo de códigos del bus a HTTP', async () => {
     expect((await request(app).get('/api/nada')).status).toBe(404);
-    expect(httpStatus({ code: 9 })).toBe(409);
-    expect(httpStatus({ code: 14 })).toBe(503);
-    expect(httpStatus({ code: 99 })).toBe(500);
+    expect(httpStatus({ code: 'FAILED_PRECONDITION' })).toBe(409);
+    expect(httpStatus({ code: 'INVALID_ARGUMENT' })).toBe(400);
+    expect(httpStatus({ code: 'NOT_FOUND' })).toBe(404);
+    expect(httpStatus({ code: 'UNAUTHENTICATED' })).toBe(401);
+    expect(httpStatus({ code: 'RESOURCE_EXHAUSTED' })).toBe(429);
+    expect(httpStatus({ code: 'UNAVAILABLE' })).toBe(503);
+    expect(httpStatus({ code: 'DESERCONOCIDO' })).toBe(500);
     expect(httpStatus(new Error('x'))).toBe(500);
   });
   test('error interno no filtra detalles', async () => {
-    (s.talleres.ListarEventos as jest.Mock).mockRejectedValueOnce(new Error('stack secreto'));
+    (s.talleres.listarEventos as jest.Mock).mockRejectedValueOnce(new Error('stack secreto'));
     const r = await request(app).get('/api/eventos');
     expect(r.status).toBe(500);
     expect(r.body.error).toBe('Error interno');
@@ -90,15 +184,15 @@ describe('CDU 1 autenticación', () => {
 });
 
 describe('CDU 2 catálogo y administración', () => {
-  test('lista con filtros traducidos al contrato gRPC', async () => {
+  test('lista con filtros traducidos al contrato RPC', async () => {
     await request(app).get('/api/eventos?curso=0970&desde=2026-10-01&hasta=2026-10-31&tipo=TALLER');
-    expect(s.talleres.ListarEventos).toHaveBeenCalledWith({ curso_codigo: '0970', fecha_desde: '2026-10-01', fecha_hasta: '2026-10-31', tipo: 'TALLER' });
+    expect(s.talleres.listarEventos).toHaveBeenCalledWith({ curso_codigo: '0970', fecha_desde: '2026-10-01', fecha_hasta: '2026-10-31', tipo: 'TALLER' });
   });
   test('detalle, cupos y 404', async () => {
     expect((await request(app).get('/api/eventos/evt-1')).body.titulo).toBe('Taller K8s');
     expect((await request(app).get('/api/eventos/zzz')).status).toBe(404);
     await request(app).get('/api/eventos/cupos?ids=evt-1,evt-2');
-    expect(s.talleres.ObtenerCupos).toHaveBeenCalledWith({ evento_ids: ['evt-1', 'evt-2'] });
+    expect(s.talleres.obtenerCupos).toHaveBeenCalledWith({ evento_ids: ['evt-1', 'evt-2'] });
   });
   test('CRUD solo para ADMINISTRADOR', async () => {
     expect((await request(app).post('/api/eventos').set('Authorization', 'Bearer tok-est').send({})).status).toBe(403);
@@ -133,7 +227,7 @@ describe('CDU 3 reserva asíncrona', () => {
     expect(r.status).toBe(202);
     expect(r.body.estado).toBe('PENDIENTE');
     expect(r.headers.location).toBe('/api/reservas/TKT-1');
-    expect(s.reservas.SolicitarReserva).toHaveBeenCalledWith({ usuario_id: 'u1', evento_id: 'evt-1', tipo: 'ACREDITACION' });
+    expect(s.reservas.solicitarReserva).toHaveBeenCalledWith({ usuario_id: 'u1', evento_id: 'evt-1', tipo: 'ACREDITACION' });
   });
   test('validaciones: body, evento inexistente, rol', async () => {
     expect((await post({})).status).toBe(400);
@@ -142,7 +236,7 @@ describe('CDU 3 reserva asíncrona', () => {
     expect((await post({ evento_id: 'evt-1' }, 'tok-admin')).status).toBe(403);
   });
   test('broker caído -> 503', async () => {
-    (s.reservas.SolicitarReserva as jest.Mock).mockRejectedValueOnce(grpcError(14, 'broker de mensajería no disponible'));
+    (s.reservas.solicitarReserva as jest.Mock).mockRejectedValueOnce(errorDe('UNAVAILABLE', 'broker de mensajería no disponible'));
     expect((await post({ evento_id: 'evt-1' })).status).toBe(503);
   });
   test('rate limit por usuario -> 429', async () => {
@@ -164,7 +258,7 @@ describe('CDU 3.4-3.7 y 4 certificación', () => {
     expect((await request(app).get('/api/examenes/evt-1').set(auth)).body.preguntas).toHaveLength(1);
     const r = await request(app).post('/api/examenes/evt-1').set(auth).send({ respuestas: { p1: 'a', p2: 'b' } });
     expect(r.body.aprobado).toBe(true);
-    expect(s.certificados.RendirExamen).toHaveBeenCalledWith({
+    expect(s.certificados.rendirExamen).toHaveBeenCalledWith({
       usuario_id: 'u1', evento_id: 'evt-1', respuestas: [{ pregunta_id: 'p1', opcion_id: 'a' }, { pregunta_id: 'p2', opcion_id: 'b' }],
     });
   });
@@ -175,15 +269,75 @@ describe('CDU 3.4-3.7 y 4 certificación', () => {
     expect(r.body).toMatchObject({ nombre_estudiante: 'Heinz Gómez', evento_titulo: 'Taller K8s', curso_codigo: '0970' });
   });
   test('precondición no cumplida -> 409', async () => {
-    (s.certificados.GenerarCertificado as jest.Mock).mockRejectedValueOnce(grpcError(9, 'No tiene aprobado el examen'));
+    (s.certificados.generarCertificado as jest.Mock).mockRejectedValueOnce(errorDe('FAILED_PRECONDITION', 'No tiene aprobado el examen'));
     const r = await request(app).post('/api/certificados').set(auth).send({ evento_id: 'evt-1' });
     expect(r.status).toBe(409);
     expect(r.body.error).toContain('No tiene aprobado');
   });
   test('listar con filtros y verificación pública sin token', async () => {
     await request(app).get('/api/certificados?curso=0970&desde=2026-01-01').set(auth);
-    expect(s.certificados.ListarCertificados).toHaveBeenCalledWith({ usuario_id: 'u1', curso_codigo: '0970', fecha_desde: '2026-01-01', fecha_hasta: '' });
+    expect(s.certificados.listarCertificados).toHaveBeenCalledWith({ usuario_id: 'u1', curso_codigo: '0970', fecha_desde: '2026-01-01', fecha_hasta: '' });
     expect((await request(app).get('/api/certificados/verificar/CERT-1')).body.valido).toBe(true);
     expect((await request(app).get('/api/certificados/verificar/falso')).body.valido).toBe(false);
+  });
+});
+
+describe('administración de exámenes (solo ADMINISTRADOR, por el broker)', () => {
+  const est = { Authorization: 'Bearer tok-est' };
+  const adm = { Authorization: 'Bearer tok-admin' };
+
+  test('crear examen exige rol ADMIN y campos obligatorios', async () => {
+    expect((await request(app).post('/api/examenes').set(est).send({ evento_id: 'evt-1', titulo: 'x' })).status).toBe(403);
+    expect((await request(app).post('/api/examenes').set(adm).send({})).status).toBe(400);
+    expect((await request(app).post('/api/examenes').set(adm).send({ evento_id: 'evt-1' })).status).toBe(400);
+    const r = await request(app).post('/api/examenes').set(adm).send({ evento_id: 'evt-1', titulo: 'Examen K8s', puntaje_minimo: 60 });
+    expect(r.status).toBe(201);
+    expect(r.body).toMatchObject({ id_examen: 7, estado: 'ACTIVO' });
+    expect(s.certificados.crearExamen).toHaveBeenCalledWith({ evento_id: 'evt-1', titulo: 'Examen K8s', puntaje_minimo: 60 });
+  });
+
+  test('agregar pregunta: id de examen numérico, enunciado y opciones', async () => {
+    expect((await request(app).post('/api/examenes/7/preguntas').set(est).send({})).status).toBe(403);
+    expect((await request(app).post('/api/examenes/abc/preguntas').set(adm).send({})).status).toBe(400);
+    expect((await request(app).post('/api/examenes/7/preguntas').set(adm).send({ enunciado: '?' })).status).toBe(400);
+    const r = await request(app).post('/api/examenes/7/preguntas').set(adm).send({
+      enunciado: '¿Dos más dos?',
+      opciones: [{ texto: '4', es_correcta: true }, { texto: '5', es_correcta: false }],
+    });
+    expect(r.status).toBe(201);
+    expect(s.certificados.agregarPregunta).toHaveBeenCalledWith({
+      id_examen: 7,
+      enunciado: '¿Dos más dos?',
+      opciones: [{ texto: '4', es_correcta: true }, { texto: '5', es_correcta: false }],
+    });
+  });
+
+  test('el examen para administrador exige rol y no secuestra la ruta del estudiante', async () => {
+    expect((await request(app).get('/api/examenes/evt-1/admin').set(est)).status).toBe(403);
+    const r = await request(app).get('/api/examenes/evt-1/admin').set(adm);
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ id_examen: 7, evento_id: 'evt-1' });
+    expect(s.certificados.obtenerExamenAdmin).toHaveBeenCalledWith({ evento_id: 'evt-1' });
+    expect(s.certificados.obtenerExamen).not.toHaveBeenCalled();
+
+    (s.certificados.obtenerExamenAdmin as jest.Mock)
+      .mockRejectedValueOnce(errorDe('NOT_FOUND', 'La actividad aún no tiene un examen configurado'));
+    const faltante = await request(app).get('/api/examenes/sin-examen/admin').set(adm);
+    expect(faltante.status).toBe(404);
+    expect(faltante.body.error).toBe('La actividad aún no tiene un examen configurado');
+  });
+
+  test('rendir examen sigue siendo de estudiante y no chuta con la ruta admin', async () => {
+    const r = await request(app).post('/api/examenes/evt-1').set(est).send({ respuestas: {} });
+    expect(r.status).toBe(200);
+    expect(s.certificados.rendirExamen).toHaveBeenCalled();
+    expect(s.certificados.crearExamen).not.toHaveBeenCalled();
+  });
+
+  test('error del bus mapeado a HTTP en las rutas admin', async () => {
+    (s.certificados.crearExamen as jest.Mock).mockRejectedValueOnce(errorDe('ALREADY_EXISTS', 'La actividad ya tiene examen'));
+    const r = await request(app).post('/api/examenes').set(adm).send({ evento_id: 'evt-1', titulo: 'x' });
+    expect(r.status).toBe(409);
+    expect(r.body.error).toBe('La actividad ya tiene examen');
   });
 });

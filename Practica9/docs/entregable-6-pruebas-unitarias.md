@@ -46,7 +46,7 @@ Por servicio:
 ```bash
 cd services/reservas-service && go test -race -cover ./...
 cd services/auth-service && npm ci && npm test
-cd services/certificados-service && pip install -r requirements-dev.txt && sh gen_proto.sh && pytest --cov=app
+cd services/certificados-service && pip install -r requirements-dev.txt && pytest --cov=app
 cd frontend && npm ci && npm test
 ```
 

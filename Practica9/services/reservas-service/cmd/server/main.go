@@ -1,35 +1,23 @@
-// HeinzGomez - Práctica 7: punto de entrada del Servicio de Reservas/Ticketing (Go).
-// Levanta el servidor gRPC (productor) y N workers consumidores de RabbitMQ.
+// HeinzGomez - Práctica 9: punto de entrada del Servicio de Reservas/Ticketing (Go).
+// Levanta N workers que consumen la cola de solicitudes y el consumidor RPC por el que
+// el API Gateway le pide las reservas (antes era un servidor gRPC en el puerto 50053).
 package main
 
 import (
 	"context"
 	"log"
-	"net"
-	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
-	pb "github.com/academix/reservas-service/gen/reservasv1"
 	"github.com/academix/reservas-service/internal/broker"
-	"github.com/academix/reservas-service/internal/grpcapi"
+	"github.com/academix/reservas-service/internal/config"
+	"github.com/academix/reservas-service/internal/rpcapi"
 	"github.com/academix/reservas-service/internal/service"
 	"github.com/academix/reservas-service/internal/store"
 	"github.com/academix/reservas-service/internal/worker"
 	"github.com/redis/go-redis/v9"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/health"
-	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
-
-func env(k, def string) string {
-	if v := os.Getenv(k); v != "" {
-		return v
-	}
-	return def
-}
 
 func conReintentos[T any](nombre string, f func() (T, error)) T {
 	var zero T
@@ -49,24 +37,27 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	cfg := config.LeerEntorno()
+
 	repo := conReintentos("postgres", func() (*store.PostgresTicketRepo, error) {
-		return store.NewPostgresTicketRepo(ctx, env("DATABASE_URL", "postgres://academix:academix@localhost:5432/reservas_db?sslmode=disable"))
+		return store.NewPostgresTicketRepo(ctx, cfg.DatabaseURL)
 	})
 	defer repo.Close()
 
-	rdb := redis.NewClient(&redis.Options{Addr: env("REDIS_ADDR", "localhost:6379")})
+	rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
+	defer rdb.Close()
 	conReintentos("redis", func() (string, error) { return rdb.Ping(ctx).Result() })
 
 	rabbit := conReintentos("rabbitmq", func() (*broker.Rabbit, error) {
-		return broker.Conectar(env("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"))
+		return broker.Conectar(cfg.RabbitmqURL)
 	})
 	defer rabbit.Close()
 
 	svc := service.NewReservasService(repo, rabbit)
 	proc := worker.NewProcesador(repo, store.NewRedisCupoStore(rdb), rabbit)
 
-	workers, _ := strconv.Atoi(env("WORKERS", "4"))
-	for i := 0; i < workers; i++ {
+	// Workers: consumen "reservas.solicitudes" y cierran el ciclo PENDIENTE -> CONFIRMADA/RECHAZADA.
+	for i := 0; i < cfg.Workers; i++ {
 		go func(n int) {
 			err := rabbit.Consumir(ctx, 20, func(ctx context.Context, body []byte) error {
 				t, err := proc.ProcesarJSON(ctx, body)
@@ -85,20 +76,17 @@ func main() {
 		}(i)
 	}
 
-	lis, err := net.Listen("tcp", ":"+env("GRPC_PORT", "50053"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	srv := grpc.NewServer()
-	pb.RegisterReservasServiceServer(srv, grpcapi.NewServer(svc))
-	hs := health.NewServer()
-	healthpb.RegisterHealthServer(srv, hs)
+	// RPC: el API Gateway publica en academix.rpc y este consumidor responde en replyTo.
+	api := rpcapi.NewServer(svc)
 	go func() {
-		<-ctx.Done()
-		srv.GracefulStop()
+		if err := rabbit.ConsumirRPC(ctx, cfg.RPCPrefetch, api.Despachador()); err != nil {
+			log.Printf("[rpc] detenido: %v", err)
+		} else {
+			log.Printf("[rpc] detenido por apagado del servicio")
+		}
 	}()
-	log.Printf("reservas-service gRPC en %s con %d workers", lis.Addr(), workers)
-	if err := srv.Serve(lis); err != nil {
-		log.Fatal(err)
-	}
+
+	log.Printf("reservas-service listo: cola %s + %d workers", broker.QueueRPC, cfg.Workers)
+	<-ctx.Done()
+	log.Println("reservas-service deteniendo…")
 }

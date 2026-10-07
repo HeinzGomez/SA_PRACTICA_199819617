@@ -1,18 +1,18 @@
-"""HeinzGomez - Práctica 7: arranque del Servicio de Certificados (gRPC :50054 + consumidor)."""
+"""HeinzGomez - Práctica 9: arranque del Servicio de Certificados.
+
+Antes levantaba un servidor gRPC en :50054; ahora el API Gateway le envía las peticiones
+por la cola RPC de RabbitMQ y este proceso solo queda atendiendo (RPC + eventos de reserva).
+"""
 from __future__ import annotations
 
 import logging
-import os
 import threading
 import time
-from concurrent import futures
 
-import grpc
-from grpc_health.v1 import health, health_pb2_grpc
-
-from . import consumer
+from . import broker, config
+from .broker import consumidor, rpc
+from .controller import Controlador
 from .domain import Firmador
-from .grpc_server import registrar
 from .repository import PostgresRepository
 from .service import CertificadosService
 
@@ -21,28 +21,30 @@ def conectar_db(dsn: str) -> PostgresRepository:  # pragma: no cover
     for i in range(30):
         try:
             return PostgresRepository(dsn)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - el servicio espera a la base de datos
             logging.warning("postgres intento %s fallido: %s", i + 1, e)
             time.sleep(2)
     raise SystemExit("postgres no disponible")
 
 
 def main() -> None:  # pragma: no cover
-    logging.basicConfig(level=logging.INFO)
-    repo = conectar_db(os.getenv("DATABASE_URL", "postgresql://academix:academix@localhost:5432/certificados_db"))
-    svc = CertificadosService(repo, Firmador(os.getenv("CERT_SIGNING_SEED", "dev-seed-cambiar")))
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    entorno = config.leer_entorno()
+    repo = conectar_db(entorno.database_url)
+    svc = CertificadosService(repo, Firmador(entorno.cert_signing_seed))
+    controlador = Controlador(svc)
 
-    threading.Thread(target=consumer.iniciar, args=(os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"), svc),
-                     daemon=True).start()
+    threading.Thread(target=consumidor.iniciar, args=(entorno.rabbitmq_url, svc), daemon=True).start()
+    threading.Thread(target=rpc.iniciar,
+                     args=(entorno.rabbitmq_url, entorno.rpc_prefetch, controlador), daemon=True).start()
 
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
-    registrar(server, svc)
-    health_pb2_grpc.add_HealthServicer_to_server(health.HealthServicer(), server)
-    port = os.getenv("GRPC_PORT", "50054")
-    server.add_insecure_port(f"0.0.0.0:{port}")
-    server.start()
-    logging.info("certificados-service gRPC en :%s", port)
-    server.wait_for_termination()
+    logging.info("certificados-service listo: cola %s + eventos %s (prefetch=%s)",
+                 broker.COLA_RPC, broker.COLA_INSCRIPCIONES, entorno.rpc_prefetch)
+    try:
+        while True:
+            time.sleep(3600)
+    except KeyboardInterrupt:
+        logging.info("certificados-service deteniendo…")
 
 
 if __name__ == "__main__":  # pragma: no cover

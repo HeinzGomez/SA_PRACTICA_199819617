@@ -3,7 +3,7 @@
 #   RabbitMQ management               -> http://localhost:15672 (guest/guest)
 name: academix
 
-x-common: &grpc-common
+x-common: &comun
   restart: unless-stopped
   networks: [academix]
 
@@ -47,7 +47,7 @@ services:
     networks: [academix]
 
   auth-service:
-    <<: *grpc-common
+    <<: *comun
     build: { context: ., dockerfile: services/auth-service/Dockerfile }
     image: academix-auth-service:dev
     environment:
@@ -61,7 +61,7 @@ services:
       rabbitmq: { condition: service_healthy }
 
   talleres-service:
-    <<: *grpc-common
+    <<: *comun
     build: { context: ., dockerfile: services/talleres-service/Dockerfile }
     image: academix-talleres-service:dev
     environment:
@@ -74,7 +74,7 @@ services:
       rabbitmq: { condition: service_healthy }
 
   reservas-service:
-    <<: *grpc-common
+    <<: *comun
     build: { context: ., dockerfile: services/reservas-service/Dockerfile }
     image: academix-reservas-service:dev
     environment:
@@ -89,7 +89,7 @@ services:
       talleres-service: { condition: service_started }
 
   certificados-service:
-    <<: *grpc-common
+    <<: *comun
     build: { context: ., dockerfile: services/certificados-service/Dockerfile }
     image: academix-certificados-service:dev
     environment:
@@ -101,20 +101,22 @@ services:
       rabbitmq: { condition: service_healthy }
 
   api-gateway:
-    <<: *grpc-common
+    <<: *comun
     build: { context: ., dockerfile: services/api-gateway/Dockerfile }
     image: academix-api-gateway:dev
     environment:
-      AUTH_GRPC: auth-service:50051
-      TALLERES_GRPC: talleres-service:50052
-      RESERVAS_GRPC: reservas-service:50053
-      CERTIFICADOS_GRPC: certificados-service:50054
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
       CORS_ORIGINS: http://localhost:3000,*.vercel.app
     ports: ["8080:8080"]
-    depends_on: [auth-service, talleres-service, reservas-service, certificados-service]
+    depends_on:
+      auth-service: { condition: service_started }
+      talleres-service: { condition: service_started }
+      reservas-service: { condition: service_started }
+      certificados-service: { condition: service_started }
+      rabbitmq: { condition: service_healthy }
 
   frontend:
-    <<: *grpc-common
+    <<: *comun
     build:
       context: .
       dockerfile: frontend/Dockerfile

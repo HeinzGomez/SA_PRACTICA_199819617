@@ -1,22 +1,25 @@
-"""HeinzGomez - Práctica 7: pruebas unitarias del Servicio de Certificados (pytest)."""
-from concurrent import futures
+"""HeinzGomez - Práctica 9: pruebas unitarias del Servicio de Certificados (pytest)."""
+import json
 from datetime import datetime, timezone
+from functools import partial
+from types import SimpleNamespace
 
-import grpc
 import pytest
 
-from app.consumer import procesar_mensaje
-from app.domain import (MAX_INTENTOS, Certificado, CertificadosError, Firmador, calificar,
-                        preguntas_para)
-from app.gen import certificados_pb2 as pb
-from app.gen import certificados_pb2_grpc as pb_grpc
-from app.grpc_server import registrar
+from app.broker.consumidor import procesar_mensaje
+from app.broker.rpc import _al_recibir
+from app.controller import Controlador
+from app.domain import MAX_INTENTOS, Certificado, CertificadosError, Firmador, Pregunta, calificar
 from app.repository import InMemoryRepository
+from app.repository.esquema import preguntas_de_semilla
 from app.service import CertificadosService
 
 EVT = "evt-sec-04"
-CORRECTAS = {p.id: p.correcta for p in preguntas_para(EVT)}
-MALAS = {p.id: "z" for p in preguntas_para(EVT)}
+GENERICAS = "evt-k8s-01"
+PREGUNTAS_EVT = preguntas_de_semilla(EVT)
+PREGUNTAS_GENERICAS = preguntas_de_semilla(GENERICAS)
+CORRECTAS = {p.id: sorted(p.correctas)[0] for p in PREGUNTAS_EVT}
+MALAS = {p.id: "z" for p in PREGUNTAS_EVT}
 
 
 @pytest.fixture
@@ -33,12 +36,26 @@ def emitir(svc, usuario="u1"):
 
 
 # ---------- dominio
-def test_calificar_banco_especifico_y_generico():
-    assert calificar(EVT, CORRECTAS) == (100, 5, 5)
-    assert calificar(EVT, {}) == (0, 0, 5)
-    genericas = {p.id: p.correcta for p in preguntas_para("otro")}
-    genericas["g1"] = "x"
-    assert calificar("otro", genericas) == (80, 4, 5)
+def test_calificar_es_ponderado_por_punteo():
+    assert calificar(PREGUNTAS_EVT, CORRECTAS) == (100, 5, 5)
+    assert calificar(PREGUNTAS_EVT, {}) == (0, 0, 5)
+    genericas = {p.id: sorted(p.correctas)[0] for p in PREGUNTAS_GENERICAS}
+    genericas[PREGUNTAS_GENERICAS[0].id] = "x"  # una mal => 80 con punteos iguales
+    assert calificar(PREGUNTAS_GENERICAS, genericas) == (80, 4, 5)
+    assert calificar([], {}) == (0, 0, 0)
+
+
+def test_calificar_acepta_una_o_varias_correctas():
+    """CDU 3.6: una pregunta puede marcar varias opciones correctas; el estudiante
+    responde con una sola y acierta si pertenece al conjunto."""
+    p = Pregunta(id="p1", enunciado="¿Cuáles son protocolos de transporte?",
+                 opciones={"a": "HTTP", "b": "gRPC", "c": "SQL", "d": "SSH"},
+                 correctas=frozenset({"a", "b"}), punteo=50)
+    otra = Pregunta(id="p2", enunciado="?", opciones={"x": "1", "y": "2"},
+                    correctas=frozenset({"y"}), punteo=50)
+    assert calificar([p, otra], {"p1": "a", "p2": "y"}) == (100, 2, 2)
+    assert calificar([p, otra], {"p1": "b", "p2": "x"}) == (50, 1, 2)
+    assert calificar([p, otra], {"p1": "c", "p2": "x"}) == (0, 0, 2)
 
 
 def test_firmador_detecta_alteraciones():
@@ -138,38 +155,141 @@ def test_consumidor_registra_y_descarta(svc):
     assert procesar_mensaje(svc, b'{"usuarioId":"u2"}') is False
 
 
-# ---------- contrato gRPC de extremo a extremo (servidor en proceso)
-@pytest.fixture
-def stub(svc):
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
-    registrar(server, svc)
-    port = server.add_insecure_port("127.0.0.1:0")
-    server.start()
-    canal = grpc.insecure_channel(f"127.0.0.1:{port}")
-    yield pb_grpc.CertificadosServiceStub(canal)
-    canal.close()
-    server.stop(None)
+# ---------- contrato RPC de extremo a extremo (cola RPC, envoltorio {ok,datos})
+def _llamar(controlador, operacion: str, cuerpo: dict) -> dict:
+    respuesta = json.loads(controlador.despachar(operacion, json.dumps(cuerpo).encode()))
+    assert respuesta["ok"], respuesta
+    return respuesta["datos"]
 
 
-def test_grpc_flujo_completo(stub):
-    ex = stub.ObtenerExamen(pb.ExamenRequest(evento_id=EVT, usuario_id="u1"))
-    assert len(ex.preguntas) == 5 and ex.nota_minima == 70
-    res = stub.RendirExamen(pb.RespuestasExamen(usuario_id="u1", evento_id=EVT, respuestas=[
-        pb.Respuesta(pregunta_id=k, opcion_id=v) for k, v in CORRECTAS.items()]))
-    assert res.aprobado and res.nota == 100
-    cert = stub.GenerarCertificado(pb.SolicitudCertificado(usuario_id="u1", evento_id=EVT, nombre_estudiante="Heinz",
-                                                           evento_titulo="Seguridad", curso_codigo="0785"))
-    assert len(cert.codigo_hash) == 64
-    assert len(stub.ListarCertificados(pb.FiltroCertificados(usuario_id="u1")).certificados) == 1
-    ver = stub.VerificarCertificado(pb.VerificarRequest(codigo=cert.codigo_hash))
-    assert ver.valido and ver.certificado.id == cert.id
-    assert stub.VerificarCertificado(pb.VerificarRequest(codigo="x")).valido is False
+def _codigo_de(controlador, operacion: str, cuerpo: dict) -> str:
+    respuesta = json.loads(controlador.despachar(operacion, json.dumps(cuerpo).encode()))
+    assert not respuesta["ok"], respuesta
+    return respuesta["error"]["codigo"]
 
 
-def test_grpc_mapea_errores(stub):
-    with pytest.raises(grpc.RpcError) as e:
-        stub.ObtenerExamen(pb.ExamenRequest(evento_id=EVT, usuario_id="nadie"))
-    assert e.value.code() == grpc.StatusCode.FAILED_PRECONDITION
-    with pytest.raises(grpc.RpcError) as e:
-        stub.ListarCertificados(pb.FiltroCertificados())
-    assert e.value.code() == grpc.StatusCode.INVALID_ARGUMENT
+def test_rpc_flujo_completo(svc):
+    c = Controlador(svc)
+    ex = _llamar(c, "certificados.obtener_examen", {"evento_id": EVT, "usuario_id": "u1"})
+    assert len(ex["preguntas"]) == 5 and ex["nota_minima"] == 70
+    res = _llamar(c, "certificados.rendir_examen",
+                  {"usuario_id": "u1", "evento_id": EVT,
+                   "respuestas": [{"pregunta_id": k, "opcion_id": v} for k, v in CORRECTAS.items()]})
+    assert res["aprobado"] and res["nota"] == 100
+    cert = _llamar(c, "certificados.generar_certificado",
+                   {"usuario_id": "u1", "evento_id": EVT, "nombre_estudiante": "Heinz",
+                    "evento_titulo": "Seguridad", "curso_codigo": "0785"})
+    assert len(cert["codigo_hash"]) == 64
+    lista = _llamar(c, "certificados.listar_certificados", {"usuario_id": "u1"})
+    assert len(lista["certificados"]) == 1
+    ver = _llamar(c, "certificados.verificar_certificado", {"codigo": cert["codigo_hash"]})
+    assert ver["valido"] and ver["certificado"]["id"] == cert["id"]
+    assert _llamar(c, "certificados.verificar_certificado", {"codigo": "x"})["valido"] is False
+
+
+def test_rpc_mapea_errores(svc):
+    c = Controlador(svc)
+    assert _codigo_de(c, "certificados.obtener_examen", {"evento_id": EVT, "usuario_id": "nadie"}) == "FAILED_PRECONDITION"
+    assert _codigo_de(c, "certificados.listar_certificados", {}) == "INVALID_ARGUMENT"
+    assert _codigo_de(c, "certificados.crear_examen", {"evento_id": EVT, "titulo": "Otro"}) == "FAILED_PRECONDITION"
+    assert _codigo_de(c, "certificados.agregar_pregunta", {"id_examen": 9999, "enunciado": "?"}) == "NOT_FOUND"
+    with pytest.raises(CertificadosError):
+        c.despachar("certificados.inexistente", b"{}")
+
+
+# ---------- adaptador pika: la firma exacta con la que el broker entrega los mensajes
+class _CanalFalso:
+    def __init__(self):
+        self.ack: list = []
+        self.nack: list = []
+        self.publicados: list = []
+
+    def basic_ack(self, tag):  # noqa: D102
+        self.ack.append(tag)
+
+    def basic_nack(self, tag, requeue=False):  # noqa: D102
+        self.nack.append((tag, requeue))
+
+    def basic_publish(self, **kw):  # noqa: D102
+        self.publicados.append(kw)
+        return None  # BlockingChannel.basic_publish no devuelve nada
+
+
+def _callback(c):
+    return partial(_al_recibir, c)
+
+
+def test_callback_de_consume_acepta_los_4_argumentos_de_pika(svc):
+    """Regresión: pika 1.x invoca el callback con (channel, method, properties, body).
+    Con un lambda de 3 argumentos el servicio reventaba al consumir el primer mensaje,
+    nunca respondía en replyTo y el API Gateway devolvía 503 UNAVAILABLE."""
+    emitir(svc)
+    canal = _CanalFalso()
+    _callback(Controlador(svc))(
+        canal,
+        SimpleNamespace(routing_key="certificados.listar_certificados", delivery_tag=1),
+        SimpleNamespace(reply_to="reply.q", correlation_id="c-1"),
+        json.dumps({"usuario_id": "u1"}).encode(),
+    )
+    assert canal.ack == [1] and not canal.nack
+    assert canal.publicados[0]["routing_key"] == "reply.q"
+    assert canal.publicados[0]["properties"].correlation_id == "c-1"
+    respuesta = json.loads(canal.publicados[0]["body"])
+    assert respuesta["ok"] and len(respuesta["datos"]["certificados"]) == 1
+
+
+def test_callback_sin_reply_to_va_a_la_dlq(svc):
+    canal = _CanalFalso()
+    _callback(Controlador(svc))(
+        canal,
+        SimpleNamespace(routing_key="certificados.verificar_certificado", delivery_tag=2),
+        SimpleNamespace(reply_to=None, correlation_id=None),
+        json.dumps({"codigo": "x"}).encode(),
+    )
+    assert canal.nack == [(2, False)] and not canal.ack
+
+
+def test_consulta_de_examen_para_administrador(svc):
+    """El administrador ve el examen (y sus respuestas) sin estar inscrito; si la
+    actividad no tiene examen el broker responde NOT_FOUND -> 404 en el gateway."""
+    c = Controlador(svc)
+    ex = _llamar(c, "certificados.obtener_examen_admin", {"evento_id": EVT})
+    assert ex["id_examen"] > 0 and len(ex["preguntas"]) == 5
+    assert any(o["es_correcta"] for p in ex["preguntas"] for o in p["opciones"])
+    assert _codigo_de(c, "certificados.obtener_examen_admin", {"evento_id": "evt-sin-examen"}) == "NOT_FOUND"
+
+
+def test_agregar_pregunta_admite_varias_correctas(svc):
+    c = Controlador(svc)
+    nuevo = _llamar(c, "certificados.crear_examen",
+                    {"evento_id": "evt-multi-01", "titulo": "Examen múltiple"})
+    pregunta = _llamar(c, "certificados.agregar_pregunta",
+                       {"id_examen": nuevo["id_examen"], "enunciado": "¿Qué son APIs?",
+                        "opciones": [{"texto": "Interfaces", "es_correcta": True},
+                                     {"texto": "Contratos", "es_correcta": True},
+                                     {"texto": "Bases de datos", "es_correcta": False},
+                                     {"texto": "Lámparas", "es_correcta": False}]})
+    assert [o["texto"] for o in pregunta["opciones"] if o["es_correcta"]] == ["Interfaces", "Contratos"]
+    # y sin ninguna correcta el broker la rechaza
+    assert _codigo_de(c, "certificados.agregar_pregunta",
+                      {"id_examen": nuevo["id_examen"], "enunciado": "Sin correcta",
+                       "opciones": [{"texto": "a"}, {"texto": "b"}]}) == "INVALID_ARGUMENT"
+
+
+def test_administra_examen_y_preguntas(svc):
+    c = Controlador(svc)
+    nuevo = _llamar(c, "certificados.crear_examen",
+                    {"evento_id": "evt-nuevo-99", "titulo": "Examen de prueba", "puntaje_minimo": 60})
+    assert nuevo["id_examen"] > 0 and nuevo["estado"] == "ACTIVO"
+    pregunta = _llamar(c, "certificados.agregar_pregunta",
+                       {"id_examen": nuevo["id_examen"], "enunciado": "¿Dos más dos?",
+                        "opciones": [{"texto": "4", "es_correcta": True},
+                                     {"texto": "5", "es_correcta": False}]})
+    assert len(pregunta["opciones"]) == 2 and any(o["es_correcta"] for o in pregunta["opciones"])
+    # la pregunta quedó en el examen y se entrega en el siguiente ObtenerExamen
+    svc.registrar_inscripcion({"usuarioId": "u3", "eventoId": "evt-nuevo-99", "ticketId": "T-99"})
+    ex = _llamar(c, "certificados.obtener_examen", {"evento_id": "evt-nuevo-99", "usuario_id": "u3"})
+    assert len(ex["preguntas"]) == 1
+    assert _codigo_de(c, "certificados.agregar_pregunta",
+                      {"id_examen": nuevo["id_examen"], "enunciado": "x",
+                       "opciones": [{"texto": "a"}]}) == "INVALID_ARGUMENT"

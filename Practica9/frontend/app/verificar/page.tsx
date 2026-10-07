@@ -5,7 +5,6 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 import { Diploma } from '@/components/Diploma';
 import { useSesion } from '@/components/Sesion';
 import { Alerta } from '@/components/Ui';
-import { DEMO } from '@/lib/mock-api';
 import type { Verificacion } from '@/lib/types';
 
 function Verificador() {
@@ -41,10 +40,6 @@ function Verificador() {
         </div>
         <button className="btn" type="submit" disabled={ocupado || !codigo.trim()} style={{ alignSelf: 'flex-end' }}>{ocupado ? 'Verificando…' : 'Verificar'}</button>
       </form>
-      {api.modo === 'mock' && !res && (
-        <p className="pequeno muted">¿Sin diploma a mano? Prueba con el diploma de ejemplo{' '}
-          <button className="btn secundario chico" onClick={() => { setCodigo(DEMO.certificado); verificar(DEMO.certificado); }}>{DEMO.certificado}</button></p>
-      )}
       <Alerta error={error} />
       {res && (
         <div className="pila">
