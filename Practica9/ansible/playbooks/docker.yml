@@ -1,0 +1,94 @@
+---
+- name: Docker · motor, Docker Compose y usuarios en el grupo docker
+  hosts: desarrollo, base_de_datos
+  become: true
+
+  vars:
+    docker_repo_url: "https://download.docker.com/linux/{{ ansible_distribution | lower }}"
+    docker_keyring: /etc/apt/keyrings/docker.gpg
+    docker_compose_arch: "{{ 'x86_64' if ansible_architecture in ['x86_64', 'amd64'] else 'aarch64' }}"
+
+  pre_tasks:
+    - name: Verificar que la distribución es la que instala Terraform
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family == 'Debian'
+          - ansible_distribution == 'Ubuntu'
+        fail_msg: >-
+          Este playbook está pensado para Ubuntu ({{ ansible_distribution }}),
+          que es la imagen declarada en terraform/compute.tf.
+
+    - name: Crear la carpeta de llaves APT
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+  tasks:
+    - name: Instalar dependencias de APT
+      ansible.builtin.apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+        state: present
+
+    - name: Importar la llave GPG oficial de Docker
+      ansible.builtin.shell: |
+        set -o errexit
+        set -o pipefail
+        curl -fsSL {{ docker_repo_url }}/gpg | gpg --dearmor -o {{ docker_keyring }}
+        chmod a+r {{ docker_keyring }}
+      args:
+        creates: "{{ docker_keyring }}"
+
+    - name: Agregar el repositorio estable de Docker
+      ansible.builtin.apt_repository:
+        repo: >-
+          deb [arch={{ 'amd64' if ansible_architecture in ['x86_64', 'amd64'] else ansible_architecture }}
+          signed-by={{ docker_keyring }}]
+          https://download.docker.com/linux/{{ ansible_distribution | lower }}
+          {{ ansible_distribution_release }} stable
+        filename: docker
+        state: present
+        update_cache: true
+
+    - name: Instalar Docker Engine y el plugin de Compose
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+
+    - name: Servicio de Docker activo y habilitado al arrancar
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Agregar usuarios al grupo docker
+      ansible.builtin.user:
+        name: "{{ item }}"
+        groups: docker
+        append: true
+      loop: "{{ docker_users }}"
+
+    - name: Instalar el binario suelto de docker-compose
+      ansible.builtin.get_url:
+        url: "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-{{ docker_compose_arch }}"
+        dest: /usr/local/bin/docker-compose
+        mode: "0755"
+
+    - name: Verificar que el motor responde
+      ansible.builtin.command: docker info
+      changed_when: false
+
+    - name: Verificar la versión de Docker Compose
+      ansible.builtin.command: docker compose version
+      changed_when: false

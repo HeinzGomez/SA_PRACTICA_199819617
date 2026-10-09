@@ -99,8 +99,8 @@ services:
     environment:
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
-      VIRTUAL_HOST: academix.yo-usac.com
-      LETSENCRYPT_HOST: academix.yo-usac.com
+      VIRTUAL_HOST: ${VIRTUAL_HOST:-academixdev.yo-usac.com}
+      LETSENCRYPT_HOST: ${LETSENCRYPT_HOST:-academixdev.yo-usac.com}
       VIRTUAL_PORT: 8080
     expose:
       - "8080"

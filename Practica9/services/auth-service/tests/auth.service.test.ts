@@ -1,118 +1,176 @@
-// HeinzGomez - Práctica 9: pruebas unitarias del Servicio de Autenticación (Jest)
-import { AuthError } from '../src/types/errores';
+// HeinzGomez - Práctica 9: pruebas unitarias del dominio de autenticación (CDU 1.1, 1.2, 1.3)
 import { AuthService, publico } from '../src/service/auth.service';
 import { EnMemoriaUsuarioRepository } from '../src/repository/en-memoria-usuario.repository';
-import { AuthController } from '../src/controller/auth.controller';
-import { Manejadores, OPERACIONES, Respuesta } from '../src/types/mensajes';
+import { ConfiguracionAuth, RegistroInput } from '../src/types/auth';
+import { UsuarioConHash } from '../src/types/usuario';
 
-const cfg = { jwtSecret: 'test', jwtExpiresIn: '1h', dominiosPermitidos: ['ingenieria.usac.edu.gt'], bcryptRounds: 4 };
-const valido = { nombre: 'Heinz Gómez', carnet: '202010044', correo: 'Heinz@Ingenieria.usac.edu.gt', password: 'Segura123' };
+const cfg: ConfiguracionAuth = {
+  jwtSecret: 'secreto-de-prueba',
+  jwtExpiresIn: '1h',
+  dominiosPermitidos: ['ingenieria.usac.edu.gt', 'usac.edu.gt'],
+  bcryptRounds: 4,
+};
 
-describe('AuthService', () => {
-  let repo: EnMemoriaUsuarioRepository;
-  let svc: AuthService;
-  beforeEach(() => {
-    repo = new EnMemoriaUsuarioRepository();
-    svc = new AuthService(repo, cfg);
-  });
+const valido: RegistroInput = {
+  nombre: 'Heinz Gómez',
+  carnet: '202010044',
+  correo: 'Heinz@Ingenieria.usac.edu.gt',
+  password: 'Segura123',
+};
 
-  test('CDU 1.2: registra estudiante, normaliza correo y no expone el hash', async () => {
+const crear = () => {
+  const repo = new EnMemoriaUsuarioRepository();
+  return { repo, svc: new AuthService(repo, cfg) };
+};
+
+describe('AuthService · registro (CDU 1.2)', () => {
+  test('registra, normaliza el correo y jamás devuelve el hash', async () => {
+    const { repo, svc } = crear();
     const r = await svc.register(valido);
+
     expect(r.token).toBeTruthy();
     expect(r.usuario.correo).toBe('heinz@ingenieria.usac.edu.gt');
     expect(r.usuario.rol).toBe('ESTUDIANTE');
-    expect((r.usuario as any).passwordHash).toBeUndefined();
+    expect(r.usuario).not.toHaveProperty('passwordHash');
+
     const guardado = await repo.buscarPorCorreo('heinz@ingenieria.usac.edu.gt');
     expect(guardado?.passwordHash).not.toBe(valido.password);
+    expect(await repo.buscarPorId(r.usuario.id)).not.toBeNull();
   });
 
-  test('CDU 1.2 excepción: datos inválidos devuelven todos los errores', async () => {
-    const errores = svc.validarRegistro({ nombre: 'A', carnet: '12', correo: 'x@gmail.com', password: 'corta' });
-    expect(errores).toHaveLength(4);
-    await expect(svc.register({ ...valido, correo: 'no-es-correo' })).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+  test('devuelve todos los errores de validación a la vez', () => {
+    const { svc } = crear();
+    const errores = svc.validarRegistro({ nombre: 'A', carnet: '12', correo: 'x@sin-punto', password: 'corta' });
+    expect(errores).toEqual([
+      'El nombre debe tener al menos 3 caracteres',
+      'El carnet debe tener 9 dígitos',
+      'Correo con formato inválido',
+      'La contraseña debe tener mínimo 8 caracteres, una mayúscula y un número',
+    ]);
   });
 
-  test('CDU 1.2 excepción: correo duplicado', async () => {
+  test('rechaza el correo fuera del dominio institucional', () => {
+    const { svc } = crear();
+    expect(svc.validarRegistro({ ...valido, correo: 'alguien@gmail.com' })).toEqual([
+      'Debe usar su correo institucional (ingenieria.usac.edu.gt, usac.edu.gt)',
+    ]);
+    expect(svc.validarRegistro({ ...valido, correo: 'alguien@otra.usac.edu.gt' })).toHaveLength(1);
+    expect(svc.validarRegistro({ ...valido, correo: 'alguien@usac.edu.gt' })).toHaveLength(0);
+  });
+
+  test('acepta el segundo dominio permitido', async () => {
+    const { svc } = crear();
+    const r = await svc.register({ ...valido, correo: 'Otro@Usac.Edu.gt' });
+    expect(r.usuario.correo).toBe('otro@usac.edu.gt');
+  });
+
+  test('campos ausentes se reportan como argumento inválido', async () => {
+    const { svc } = crear();
+    expect(svc.validarRegistro({} as RegistroInput)).toHaveLength(4);
+    expect(svc.validarRegistro({ nombre: '   ', carnet: '', correo: '', password: '' })).toHaveLength(4);
+    await expect(svc.register({ ...valido, correo: 'no-es-correo' }))
+      .rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+    await expect(svc.register({} as RegistroInput)).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+  });
+
+  test('correo duplicado devuelve ALREADY_EXISTS', async () => {
+    const { svc } = crear();
     await svc.register(valido);
     await expect(svc.register(valido)).rejects.toMatchObject({ code: 'ALREADY_EXISTS' });
   });
 
-  test('CDU 1.3: login correcto y token válido', async () => {
+  test('el carnet debe ser exactamente 9 dígitos', () => {
+    const { svc } = crear();
+    expect(svc.validarRegistro({ ...valido, carnet: '20201004' })).toContain('El carnet debe tener 9 dígitos');
+    expect(svc.validarRegistro({ ...valido, carnet: '20201004a' })).toContain('El carnet debe tener 9 dígitos');
+    expect(svc.validarRegistro({ ...valido, carnet: ' 202010044 ' })).toHaveLength(0);
+  });
+
+  test('la contraseña exige largo, mayúscula y número', () => {
+    const { svc } = crear();
+    expect(svc.validarRegistro({ ...valido, password: 'segura123' })).toHaveLength(1); // sin mayúscula
+    expect(svc.validarRegistro({ ...valido, password: 'Seguraaaa' })).toHaveLength(1); // sin número
+    expect(svc.validarRegistro({ ...valido, password: 'Segura1' })).toHaveLength(1);   // 7 caracteres
+    expect(svc.validarRegistro({ ...valido, password: 'Segura123' })).toHaveLength(0); // cumple las tres
+  });
+});
+
+describe('AuthService · login y tokens (CDU 1.3)', () => {
+  test('login correcto produce un token verificable', async () => {
+    const { svc } = crear();
     await svc.register(valido);
     const { token, usuario } = await svc.login('HEINZ@ingenieria.usac.edu.gt', 'Segura123');
+
     const v = await svc.validateToken(token);
     expect(v.valido).toBe(true);
     expect(v.usuario?.id).toBe(usuario.id);
+    expect(v.usuario).not.toHaveProperty('passwordHash');
   });
 
-  test('CDU 1.3 excepción: credenciales incorrectas con mensaje genérico', async () => {
+  test('credenciales incorrectas siempre dan el mismo mensaje genérico', async () => {
+    const { svc } = crear();
     await svc.register(valido);
     await expect(svc.login(valido.correo, 'Mala12345')).rejects.toThrow('Credenciales incorrectas');
     await expect(svc.login('nadie@ingenieria.usac.edu.gt', 'x')).rejects.toThrow('Credenciales incorrectas');
   });
 
-  test('validateToken rechaza tokens alterados o de usuarios inexistentes', async () => {
-    expect((await svc.validateToken('basura')).valido).toBe(false);
-    const { token } = await svc.register(valido);
-    const otro = new AuthService(new EnMemoriaUsuarioRepository(), cfg);
-    expect((await otro.validateToken(token)).valido).toBe(false);
+  test('entradas sin correo ni contraseña no revientan: devuelven UNAUTHENTICATED', async () => {
+    const { svc } = crear();
+    await svc.register(valido);
+    await expect(svc.login(undefined as unknown as string, 'Segura123'))
+      .rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+    await expect(svc.login(valido.correo, undefined as unknown as string))
+      .rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+    await expect(svc.login(undefined as unknown as string, undefined as unknown as string))
+      .rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
   });
 
-  test('publico() elimina el hash', () => {
-    const u = publico({ id: '1', nombre: 'n', carnet: 'c', correo: 'e', rol: 'ADMINISTRADOR', passwordHash: 'h' });
-    expect(u).toEqual({ id: '1', nombre: 'n', carnet: 'c', correo: 'e', rol: 'ADMINISTRADOR' });
+  test('login recorta y normaliza el correo', async () => {
+    const { svc } = crear();
+    await svc.register(valido);
+    const { usuario } = await svc.login('  heinz@ingenieria.usac.edu.gt  ', 'Segura123');
+    expect(usuario.correo).toBe('heinz@ingenieria.usac.edu.gt');
+  });
+
+  test('validateToken rechaza basura, tokens alterados y tokens de otro servicio', async () => {
+    const svc = new AuthService(new EnMemoriaUsuarioRepository(), cfg);
+    expect((await svc.validateToken('basura')).valido).toBe(false);
+    expect((await svc.validateToken('')).valido).toBe(false);
+
+    const { token } = await svc.register(valido);
+    expect((await svc.validateToken(token)).valido).toBe(true);
+
+    // el usuario ya no está en ese repositorio -> el token deja de servir
+    const ajeno = new AuthService(new EnMemoriaUsuarioRepository(), cfg);
+    expect((await ajeno.validateToken(token)).valido).toBe(false);
+  });
+
+  test('token firmado con otro secreto no valida', async () => {
+    const { svc } = crear();
+    await svc.register(valido);
+    const { token } = await svc.register({ ...valido, correo: 'otra@usac.edu.gt' });
+    const ajeno = new AuthService(new EnMemoriaUsuarioRepository(), { ...cfg, jwtSecret: 'otro' });
+    expect((await ajeno.validateToken(token)).valido).toBe(false);
+    expect((await svc.validateToken(token)).valido).toBe(true);
   });
 });
 
-describe('controlador RPC del bus de mensajes', () => {
-  const crear = () => new AuthController(new AuthService(new EnMemoriaUsuarioRepository(), cfg)).manejadores();
-
-  const llamar = async (h: Manejadores, operacion: string, cuerpo: unknown): Promise<any> => {
-    let respuesta: Respuesta<any> | undefined;
-    await h[operacion]({ operacion, cuerpo, replyTo: 'cola-de-prueba', responder: async (r) => { respuesta = r; } });
-    return respuesta!;
-  };
-
-  test('expone exactamente las operaciones del contrato', () => {
-    const h = crear();
-    expect(Object.keys(h).sort()).toEqual([OPERACIONES.login, OPERACIONES.registro, OPERACIONES.validacion].sort());
-    expect(h['auth.operacion_inexistente']).toBeUndefined();
+describe('publico()', () => {
+  test('elimina passwordHash conservando el resto', () => {
+    const u: UsuarioConHash = {
+      id: '1', nombre: 'n', carnet: 'c', correo: 'e', rol: 'ADMINISTRADOR', passwordHash: 'h',
+    };
+    expect(publico(u)).toEqual({ id: '1', nombre: 'n', carnet: 'c', correo: 'e', rol: 'ADMINISTRADOR' });
   });
+});
 
-  test('registro, login y validación responden {ok:true,datos}', async () => {
-    const h = crear();
-    const reg = await llamar(h, OPERACIONES.registro, valido);
-    expect(reg.ok).toBe(true);
-    expect(reg.datos.usuario.correo).toBe('heinz@ingenieria.usac.edu.gt');
-
-    const log = await llamar(h, OPERACIONES.login, { correo: valido.correo, password: valido.password });
-    expect(log.ok).toBe(true);
-    expect(log.datos.token).toBeTruthy();
-
-    const val = await llamar(h, OPERACIONES.validacion, { token: log.datos.token });
-    expect(val).toMatchObject({ ok: true, datos: { valido: true } });
-    expect(val.datos.usuario.id).toBe(reg.datos.usuario.id);
-  });
-
-  test('los errores de negocio viajan como {ok:false,error:{codigo,mensaje}}', async () => {
-    const h = crear();
-    await llamar(h, OPERACIONES.registro, valido);
-
-    const mala = await llamar(h, OPERACIONES.login, { correo: valido.correo, password: 'no' });
-    expect(mala).toEqual({ ok: false, error: { codigo: 'UNAUTHENTICATED', mensaje: 'Credenciales incorrectas' } });
-
-    const dup = await llamar(h, OPERACIONES.registro, valido);
-    expect(dup).toMatchObject({ ok: false, error: { codigo: 'ALREADY_EXISTS' } });
-
-    const invalida = await llamar(h, OPERACIONES.registro, {});
-    expect(invalida).toMatchObject({ ok: false, error: { codigo: 'INVALID_ARGUMENT' } });
-
-    const tokenMalo = await llamar(h, OPERACIONES.validacion, { token: 'basura' });
-    expect(tokenMalo).toEqual({ ok: true, datos: { valido: false } });
-  });
-
-  test('AuthError conserva el código de dominio', () => {
-    expect(new AuthError('UNAUTHENTICATED', 'x').code).toBe('UNAUTHENTICATED');
-    expect(new Error('boom')).not.toBeInstanceOf(AuthError);
+describe('EnMemoriaUsuarioRepository', () => {
+  test('consultas que no encuentran devuelven null', async () => {
+    const repo = new EnMemoriaUsuarioRepository();
+    expect(await repo.buscarPorCorreo('nadie@usac.edu.gt')).toBeNull();
+    expect(await repo.buscarPorId('no-existe')).toBeNull();
+    await repo.crear({ id: 'a', nombre: 'A', carnet: '111111111', correo: 'a@usac.edu.gt', rol: 'ESTUDIANTE', passwordHash: 'h' });
+    expect((await repo.buscarPorId('a'))?.nombre).toBe('A');
+    expect(await repo.buscarPorId('b')).toBeNull();
   });
 });

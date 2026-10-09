@@ -1,0 +1,22 @@
+---
+- name: Entorno · carpeta academix/ y su archivo .env
+  hosts: desarrollo, base_de_datos
+  become: true
+
+  tasks:
+    - name: Crear la carpeta academix/
+      ansible.builtin.file:
+        path: "{{ academix_dir }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0755"
+
+    - name: Escribir el archivo .env
+      ansible.builtin.template:
+        src: ../templates/env.j2
+        dest: "{{ academix_dir }}/.env"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0600"
+        backup: true
