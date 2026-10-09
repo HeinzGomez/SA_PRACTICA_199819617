@@ -40,6 +40,31 @@ describe('CDU 2.1 / 2.2 consulta y filtros', () => {
 
   test('coincideFiltro con fecha_hasta con hora exacta', () => {
     expect(coincideFiltro(EVENTOS_SEED[0], { fecha_hasta: '2026-10-05T14:59:00Z' })).toBe(false);
+    expect(coincideFiltro(EVENTOS_SEED[0], { fecha_hasta: '2026-10-05T15:00:00Z' })).toBe(true);
+    expect(coincideFiltro(EVENTOS_SEED[0], { fecha_desde: '2026-12-31' })).toBe(false);
+    expect(coincideFiltro(EVENTOS_SEED[0], { curso_codigo: '0000' })).toBe(false);
+    expect(coincideFiltro(EVENTOS_SEED[0], { tipo: 'TALLER' })).toBe(true);
+    expect(coincideFiltro(EVENTOS_SEED[0], { tipo: 'CERTIFICACION' })).toBe(false);
+  });
+
+  test('un filtro sin resultados devuelve lista vacía', async () => {
+    const { svc } = nuevo();
+    expect(await svc.listar({ curso_codigo: '9999' })).toEqual([]);
+    expect(await svc.cupos(['no-existe-1', 'no-existe-2'])).toEqual([]);
+  });
+
+  test('validarEvento devuelve los 7 errores con el objeto vacío', () => {
+    expect(validarEvento({})).toEqual([
+      'El título debe tener al menos 5 caracteres',
+      `Tipo inválido (TALLER|CONFERENCIA|LABORATORIO|CERTIFICACION)`,
+      'Debe vincularse a un curso de YOUSAC',
+      'Fecha de inicio inválida',
+      'El cupo total debe ser un entero entre 1 y 5000',
+      'Duración mínima de 15 minutos',
+      'Debe indicar el ponente',
+    ]);
+    expect(validarEvento({ ...base, duracion_min: 14, cupo_total: 5001 })).toHaveLength(2);
+    expect(validarEvento({ ...base, duracion_min: 60.5 })).toHaveLength(1);
   });
 });
 
@@ -162,5 +187,45 @@ describe('controlador RPC del bus de mensajes', () => {
 
     expect(new TalleresError('FAILED_PRECONDITION', 'x').code).toBe('FAILED_PRECONDITION');
     expect(new Error('boom')).not.toBeInstanceOf(TalleresError);
+  });
+
+  test('sin replyTo no intenta responder (el mensaje sería de otra cola)', async () => {
+    const h = crear();
+    let llamado = 0;
+    await h[OPERACIONES.obtenerEvento]({
+      operacion: OPERACIONES.obtenerEvento,
+      cuerpo: { id: 'evt-k8s-01' },
+      responder: async () => { llamado += 1; },
+    });
+    expect(llamado).toBe(0);
+  });
+
+  test('un error inesperado se responde como INTERNAL y se registra', async () => {
+    const { repo } = nuevo();
+    repo.listar = async () => { throw new Error('se cayó la base'); };
+    const h = new TalleresController(new TalleresService(repo, nuevo().cache)).manejadores();
+    const errores = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    let respuesta: any;
+    await h[OPERACIONES.listarEventos]({
+      operacion: OPERACIONES.listarEventos, cuerpo: {}, replyTo: 'cola-de-prueba',
+      responder: async (r) => { respuesta = r; },
+    });
+
+    expect(respuesta).toEqual({ ok: false, error: { codigo: 'INTERNAL', mensaje: 'Error interno' } });
+    expect(errores).toHaveBeenCalledWith('[talleres] error inesperado:', expect.any(Error));
+    errores.mockRestore();
+  });
+
+  test('obtenerCupos y obtenerEvento normalizan el cuerpo', async () => {
+    const h = crear();
+    const vacio = await llamar(h, OPERACIONES.obtenerCupos, undefined);
+    expect(vacio.datos.cupos).toHaveLength(EVENTOS_SEED.length);
+
+    const sinId = await llamar(h, OPERACIONES.obtenerEvento, null);
+    expect(sinId).toMatchObject({ ok: false, error: { codigo: 'NOT_FOUND' } });
+
+    const sinIds = await llamar(h, OPERACIONES.obtenerCupos, { evento_ids: 'no-es-arreglo' });
+    expect(sinIds.datos.cupos).toHaveLength(EVENTOS_SEED.length);
   });
 });

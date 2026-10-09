@@ -20,13 +20,13 @@ function Suite([string]$nombre, [string]$dir, [string[]]$comandos) {
   finally { Pop-Location }
 }
 
-Suite "Go - reservas-service" "services/reservas-service" @("if not exist go.sum go mod tidy", "go test -cover ./...")
+Suite "Go - reservas-service" "services/reservas-service" @("if not exist go.sum go mod tidy", "set GOMAXPROCS=1&& go test -p 1 -parallel 1 -count=1 -cover ./...")
 foreach ($s in "auth-service", "talleres-service", "api-gateway") {
   Suite "Jest - $s" "services/$s" @("npm ci", "npm test")
 }
 Suite "pytest - certificados-service" "services/certificados-service" @(
   "python -m pip install -q -r requirements-dev.txt",
-  "python -m pytest --cov=app"
+  "python -m pytest --cov=app --cov-report=term"
 )
 Suite "Jest - frontend" "frontend" @("npm ci", "npm test")
 

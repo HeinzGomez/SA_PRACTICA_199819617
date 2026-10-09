@@ -8,6 +8,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/academix/reservas-service/internal/domain"
 	"github.com/academix/reservas-service/internal/store"
@@ -88,5 +89,31 @@ func TestMemoryTicketRepo(t *testing.T) {
 	l, _ := r.ListarPorUsuario(ctx, "u")
 	if len(l) != 1 || l[0].ID != "a" {
 		t.Errorf("listar por usuario incorrecto: %+v", l)
+	}
+}
+
+func TestClavesDeCupo(t *testing.T) {
+	if store.CupoKey("evt-1") != "cupo:evento:evt-1" {
+		t.Errorf("clave de cupo fuera de contrato con Talleres: %s", store.CupoKey("evt-1"))
+	}
+	if store.InscritosKey("evt-1") != "inscritos:evento:evt-1" {
+		t.Errorf("clave de inscritos fuera de contrato: %s", store.InscritosKey("evt-1"))
+	}
+}
+
+// Sin Redis vivo: la construcción no conecta y Reservar devuelve el error de red.
+func TestRedisCupoStore_SinServidor(t *testing.T) {
+	rdb := redis.NewClient(&redis.Options{Addr: "127.0.0.1:1", DialTimeout: 500 * time.Millisecond})
+	defer rdb.Close()
+
+	s := store.NewRedisCupoStore(rdb)
+	if s == nil {
+		t.Fatal("NewRedisCupoStore no puede devolver nil")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if _, err := s.Reservar(ctx, "evt-1", "u1"); err == nil {
+		t.Error("sin Redis escuchando, Reservar debe devolver error (no un resultado inventado)")
 	}
 }
