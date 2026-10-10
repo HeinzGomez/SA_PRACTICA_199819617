@@ -1,0 +1,101 @@
+---
+- name: PostgreSQL · compose, infra y arranque en vm-database
+  hosts: base_de_datos
+  become: true
+
+  vars:
+    db_compose: docker-compose.db.yml
+    db_contenedor: academix-postgres
+    db_usuario: academix
+    db_bases_esperadas:
+      - auth_db
+      - talleres_db
+      - reservas_db
+      - certificados_db
+
+  pre_tasks:
+    - name: Verificar que existe la carpeta academix/ (lo hace entorno.yml)
+      ansible.builtin.stat:
+        path: "{{ academix_dir }}/.env"
+      register: env_db
+
+    - name: Abortar si falta el archivo .env
+      ansible.builtin.assert:
+        that: env_db.stat.exists
+        fail_msg: >-
+          Ejecuta primero playbooks/entorno.yml, que es quien crea
+          {{ academix_dir }}/.env (POSTGRES_PASSWORD sale de ahí).
+
+    - name: Verificar que Docker ya está instalado (lo hace docker.yml)
+      ansible.builtin.command: docker info
+      register: docker_db
+      changed_when: false
+      failed_when: false
+
+    - name: Abortar si falta Docker
+      ansible.builtin.assert:
+        that: docker_db.rc == 0
+        fail_msg: >-
+          No responde el motor de Docker. Ejecuta antes playbooks/docker.yml
+          (o site.yml completo, que ya lo incluye).
+
+  tasks:
+    - name: Copiar docker-compose.db.yml
+      ansible.builtin.copy:
+        src: ../../docker-compose.db.yml
+        dest: "{{ academix_dir }}/{{ db_compose }}"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0644"
+
+    # copy no crea directorios intermedios; aquí por si db.yml se corre solo.
+    - name: Crear la carpeta infra/postgres/
+      ansible.builtin.file:
+        path: "{{ academix_dir }}/infra/postgres"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0755"
+
+    - name: Copiar infra/postgres/init.sql
+      ansible.builtin.copy:
+        src: ../../infra/postgres/init.sql
+        dest: "{{ academix_dir }}/infra/postgres/init.sql"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0644"
+
+    - name: Arrancar PostgreSQL
+      ansible.builtin.command: docker compose -f {{ db_compose }} up -d
+      args:
+        chdir: "{{ academix_dir }}"
+
+    - name: Esperar a que PostgreSQL acepte conexiones
+      ansible.builtin.command: >-
+        docker exec {{ db_contenedor }}
+        pg_isready -U {{ db_usuario }} -d postgres
+      register: pg_listo
+      changed_when: false
+      until: pg_listo.rc == 0
+      retries: 30
+      delay: 5
+
+    - name: Verificar que existen las cuatro bases
+      ansible.builtin.command: >-
+        docker exec {{ db_contenedor }}
+        psql -U {{ db_usuario }} -d postgres
+        -tAc "SELECT datname FROM pg_database
+              WHERE datname IN ('auth_db','talleres_db',
+                                'reservas_db','certificados_db')"
+      register: bases
+      changed_when: false
+      failed_when: >-
+        bases.rc != 0
+        or (bases.stdout_lines | default([]) | sort)
+           != (db_bases_esperadas | sort)
+
+    - name: Resumen del entorno de producción
+      ansible.builtin.debug:
+        msg: >-
+          PostgreSQL listo en {{ ansible_host }}:5432 con las bases
+          {{ db_bases_esperadas | join(', ') }}.

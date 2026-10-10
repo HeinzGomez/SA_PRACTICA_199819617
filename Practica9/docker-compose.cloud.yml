@@ -1,0 +1,153 @@
+name: academix-cloud
+
+x-common: &comun
+  restart: unless-stopped
+  networks: [academix]
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: academix
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-academix}
+      POSTGRES_DB: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U academix -d postgres"]
+      interval: 5s
+      retries: 10
+    networks: [academix]
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+    networks: [academix]
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
+    ports: ["5672:5672", "15672:15672"]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      retries: 12
+    networks: [academix]
+
+  auth-service:
+    <<: *comun
+    image: ghcr.io/heinzgomez/academix-auth-service:${IMAGE_TAG:-latest}
+    environment:
+      DATABASE_URL: postgres://academix:${POSTGRES_PASSWORD:-academix}@postgres:5432/auth_db
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
+      JWT_SECRET: ${JWT_SECRET:-cambiar-este-secreto-en-produccion}
+      ADMIN_EMAIL: admin@ingenieria.usac.edu.gt
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin12345}
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  talleres-service:
+    <<: *comun
+    image: ghcr.io/heinzgomez/academix-talleres-service:${IMAGE_TAG:-latest}
+    environment:
+      DATABASE_URL: postgres://academix:${POSTGRES_PASSWORD:-academix}@postgres:5432/talleres_db
+      REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  reservas-service:
+    <<: *comun
+    image: ghcr.io/heinzgomez/academix-reservas-service:${IMAGE_TAG:-latest}
+    environment:
+      DATABASE_URL: postgres://academix:${POSTGRES_PASSWORD:-academix}@postgres:5432/reservas_db?sslmode=disable
+      REDIS_ADDR: redis:6379
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      WORKERS: "4"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      talleres-service: { condition: service_started }
+
+  certificados-service:
+    <<: *comun
+    image: ghcr.io/heinzgomez/academix-certificados-service:${IMAGE_TAG:-latest}
+    environment:
+      DATABASE_URL: postgresql://academix:${POSTGRES_PASSWORD:-academix}@postgres:5432/certificados_db
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      CERT_SIGNING_SEED: ${CERT_SIGNING_SEED:-cambiar-esta-semilla-en-produccion}
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  api-gateway:
+    <<: *comun
+    image: ghcr.io/heinzgomez/academix-api-gateway:${IMAGE_TAG:-latest}
+    environment:
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      VIRTUAL_HOST: ${VIRTUAL_HOST:-academixdev.yo-usac.com}
+      LETSENCRYPT_HOST: ${LETSENCRYPT_HOST:-academixdev.yo-usac.com}
+      VIRTUAL_PORT: 8080
+    expose:
+      - "8080"
+    depends_on: [auth-service, talleres-service, reservas-service, certificados-service]
+
+  nginx-proxy:
+    image: nginxproxy/nginx-proxy:alpine
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - conf:/etc/nginx/conf.d
+      - vhost:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - certs:/etc/nginx/certs:ro
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+    networks:
+      - academix
+    restart: unless-stopped
+
+  acme-companion:
+    image: nginxproxy/acme-companion
+    container_name: nginx-proxy-acme
+    environment:
+      - DEFAULT_EMAIL=${LETSENCRYPT_EMAIL:-admin@yo-usac.com}
+      - NGINX_PROXY_CONTAINER=nginx-proxy
+    volumes:
+      - conf:/etc/nginx/conf.d
+      - vhost:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - certs:/etc/nginx/certs:rw
+      - acme:/etc/acme.sh
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - nginx-proxy
+    networks:
+      - academix
+    restart: unless-stopped
+
+networks:
+  academix:
+
+volumes:
+  pgdata:
+  conf:
+  vhost:
+  html:
+  certs:
+  acme:

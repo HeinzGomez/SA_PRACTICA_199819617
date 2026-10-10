@@ -1,0 +1,89 @@
+---
+# Variables globales para todos los hosts.
+#
+# Este fichero NO contiene secretos. Están en  group_vars/all/99-secretos.yml,
+# que está en .gitignore y por tanto nunca se sube al repositorio.
+# Si clonas el repo de cero, copia el ejemplo y pon tus valores:
+#   cp 99-secretos.yml.example 99-secretos.yml
+#
+# Ansible carga TODOS los ficheros de group_vars/all/ en orden alfabético,
+# por eso los secretos van con prefijo 99- (se cargan al final).
+
+# ------------------------------------------------------------------
+# Conexión
+# ------------------------------------------------------------------
+# Clave con la que entran las tres VMs (la misma que inyecta Terraform).
+# Va aquí además de ansible.cfg para no depender de la expansión de ~.
+ansible_ssh_private_key_file: "{{ lookup('env', 'HOME') }}/.ssh/academix_lab"
+
+# ------------------------------------------------------------------
+# Base (playbooks/base.yml)
+# ------------------------------------------------------------------
+# "safe" (por defecto), "full", "dist" o "none"
+paquetes_upgrade: safe
+
+paquetes_utilitarios:
+  - git
+  - curl
+  - htop
+  - net-tools
+  - vim
+  - ca-certificates
+  - gnupg
+  - lsb-release
+  - unzip
+
+# Directivas que se escriben en /etc/ssh/sshd_config.d/00-academix.conf
+ssh_hardening:
+  PermitRootLogin: "no"
+  PasswordAuthentication: "no"
+  PubkeyAuthentication: "yes"
+  PermitEmptyPasswords: "no"
+  KbdInteractiveAuthentication: "no"
+  X11Forwarding: "no"
+  MaxAuthTries: "4"
+  ClientAliveInterval: "300"
+  ClientAliveCountMax: "2"
+
+# ------------------------------------------------------------------
+# Docker (playbooks/docker.yml)
+# ------------------------------------------------------------------
+docker_users:
+  - ubuntu
+
+# ------------------------------------------------------------------
+# K3s (playbooks/k3s.yml)
+# ------------------------------------------------------------------
+# El ingress que trae K3s por defecto; se apaga porque lo instala el
+# playbook de ingress (si prefieres Traefik, ponlo en [] y deja
+# instalador_con_helm: false)
+k3s_servicios_desactivados:
+  - traefik
+
+# ------------------------------------------------------------------
+# Ingress (playbooks/ingress.yml)
+# ------------------------------------------------------------------
+instalar_ingress_nginx: true
+instalar_cert_manager: true
+ingress_nginx_namespace: ingress-nginx
+ingress_nginx_servicio: ingress-nginx-controller
+cert_manager_namespace: cert-manager
+cluster_issuer_name: letsencrypt-prod
+
+# ------------------------------------------------------------------
+# kubeconfig hacia la máquina de administración (playbooks/k3s.yml)
+# ------------------------------------------------------------------
+# deja el ~/.kube/config que ya tengas con copia de seguridad
+instalar_kubeconfig_en_kubectl: true
+
+# ------------------------------------------------------------------
+# Entorno academix/ y su .env (playbooks/entorno.yml)
+# ------------------------------------------------------------------
+academix_dir: "/home/{{ ansible_user }}/academix"
+
+letsencrypt_email: yenyogamer290@gmail.com
+cors_origins: "*"
+image_tag: latest
+
+# No es secreto: es el usuario por defecto de la imagen de RabbitMQ.
+rabbitmq_user: guest
