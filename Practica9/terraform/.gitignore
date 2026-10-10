@@ -7,7 +7,7 @@
 *.tfstate.*
 
 # Planes: contienen el diff completo con los valores sensibles.
-tfplan
+tfplan*
 *.tfplan
 
 # Variables con valores reales. Solo se versiona terraform.tfvars.example.
