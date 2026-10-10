@@ -1,12 +1,27 @@
+# Terraform · estado local, variables con valores reales y artefactos.
+
+# Estado: si se subiera, cualquiera ve las IPs, dependencias y valores aplicados.
 .terraform/
 .terraform.lock.hcl
 *.tfstate
 *.tfstate.*
+
+# Planes: contienen el diff completo con los valores sensibles.
+tfplan
+*.tfplan
+
+# Variables con valores reales. Solo se versiona terraform.tfvars.example.
+*.tfvars
+*.auto.tfvars
+!*.tfvars.example
+
+# Volcados de pánico y overrides locales.
 crash.log
 crash.*.log
 override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
-*.tfvars
-!*.tfvars.example
+
+# Bloqueo de estado (se genera solo mientras terraform corre).
+.terraform.tfstate.lock.info

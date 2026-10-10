@@ -46,14 +46,33 @@
       ansible.builtin.command: helm repo update
       changed_when: false
 
+    # Con hostNetwork el controlador escucha directamente en los puertos 80/443
+    # del NODO, y el firewall de GCP (regla "http-https", tag "web") ya deja pasar
+    # ese tráfico. Por eso NO hace falta un Service de tipo LoadBalancer: en GCP
+    # ServiceLB nunca recibe una IP externa (la IP real está detrás de NAT y no
+    # aparece en ninguna interfaz), el status queda vacío y el paso de espera
+    # posterior fallaría tras 150 s. Además el enunciado pide que SOLO existan
+    # servicios ClusterIP y que api-gateway salga por Ingress.
+    #   hostNetwork=true  -> nginx escucha en el nodo (80/443)
+    #   dnsPolicy=...     -> OBLIGATORIO: sin él el pod no resuelve
+    #                         *.svc.cluster.local y el webhook de validación falla
+    # KUBECONFIG es obligatorio aquí. Sin él helm mira ~/.kube/config (que con
+    # become: true es /root/.kube/config y no existe) y acaba en el default
+    #   http://localhost:8080 -> "Kubernetes cluster unreachable"
+    # El kubeconfig de K3s vive en /etc/rancher/k3s/k3s.yaml, igual que en las
+    # tareas de kubectl de abajo.
     - name: Instalar el controlador ingress-nginx
       ansible.builtin.command: >-
         helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx
         --namespace {{ ingress_nginx_namespace }}
         --create-namespace
-        --set controller.service.type=LoadBalancer
+        --set controller.service.type=ClusterIP
+        --set controller.hostNetwork=true
+        --set controller.dnsPolicy=ClusterFirstWithHostNet
         --wait
         --timeout 5m
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
       when: instalar_ingress_nginx | bool
 
     - name: Instalar cert-manager (certificados TLS automáticos)
@@ -65,6 +84,8 @@
         --set installCRDs=true
         --wait
         --timeout 5m
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
       when: instalar_cert_manager | bool
 
     - name: Esperar a que los controladores estén disponibles
@@ -95,18 +116,21 @@
       changed_when: "'created' in issuer_aplicado.stdout or 'configured' in issuer_aplicado.stdout"
       when: instalar_cert_manager | bool
 
-    - name: Esperar a que ingress-nginx reciba una IP externa
+    # Antes aquí se esperaba a que el Service tuviera una IP externa en
+    # .status.loadBalancer.ingress. Con controller.service.type=ClusterIP ese
+    # campo queda vacío, la tarea reintentaba 30×5 s = 150 s y SIEMPRE fallaba.
+    # Con hostNetwork la señal real de que nginx está sirviendo es que el pod
+    # del controlador esté Ready.
+    - name: Esperar a que el controlador de ingress esté listo
       ansible.builtin.command: >-
-        kubectl get svc {{ ingress_nginx_servicio }}
+        kubectl wait --for=condition=Ready pod
+        -l app.kubernetes.io/component=controller
         -n {{ ingress_nginx_namespace }}
-        -o jsonpath={.status.loadBalancer.ingress}
+        --timeout=180s
       environment:
         KUBECONFIG: "{{ k3s_kubeconfig }}"
-      register: ip_externa
-      changed_when: false
-      until: ip_externa.stdout | trim | length > 0
-      retries: 30
-      delay: 5
+      register: ingress_listo
+      changed_when: "' condition met' in ingress_listo.stdout"
       when: instalar_ingress_nginx | bool
 
     - name: Verificar que el controlador de ingress está corriendo

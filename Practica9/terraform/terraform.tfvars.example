@@ -9,8 +9,12 @@ ssh_public_key_path   = "~/.ssh/academix_lab.pub"
 allowed_ssh_cidrs         = ["0.0.0.0/0"]
 allowed_http_cidrs        = ["0.0.0.0/0"]
 allowed_k3s_api_cidrs     = ["0.0.0.0/0"]
+# PostgreSQL (5432) en vm-database: solo dentro de la VPC, lo usan los pods de K3s.
+allowed_db_cidrs          = ["10.10.0.0/16"]
+# Telemetría (Grafana/Prometheus/node-exporter): solo VPC. Ver comentario en
+# la variable si algún día instalas ese stack y lo quieres ver desde el navegador.
 telemetry_ports           = ["3000", "9090", "9100"]
-telemetry_cidrs           = ["0.0.0.0/0"]
+telemetry_cidrs           = ["10.10.0.0/16"]
 
 machine_type_desarrollo      = "e2-medium"
 machine_type_k3s             = "e2-standard-2"

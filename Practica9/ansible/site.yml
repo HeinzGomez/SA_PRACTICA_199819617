@@ -16,3 +16,6 @@
 
 # 05 · vm-development y vm-database: carpeta academix/ con su .env
 - import_playbook: playbooks/entorno.yml
+
+# 06 · vm-database: PostgreSQL de producción (compose + infra + arranque)
+- import_playbook: playbooks/db.yml

@@ -1,8 +1,13 @@
 ---
 # Variables globales para todos los hosts.
-# Si necesitas secretos reales, muévelos a group_vars/vault.yml
-#   ansible-vault encrypt group_vars/vault.yml
-# y no los subas en claro al repositorio.
+#
+# Este fichero NO contiene secretos. Están en  group_vars/all/99-secretos.yml,
+# que está en .gitignore y por tanto nunca se sube al repositorio.
+# Si clonas el repo de cero, copia el ejemplo y pon tus valores:
+#   cp 99-secretos.yml.example 99-secretos.yml
+#
+# Ansible carga TODOS los ficheros de group_vars/all/ en orden alfabético,
+# por eso los secretos van con prefijo 99- (se cargan al final).
 
 # ------------------------------------------------------------------
 # Conexión
@@ -76,14 +81,9 @@ instalar_kubeconfig_en_kubectl: true
 # ------------------------------------------------------------------
 academix_dir: "/home/{{ ansible_user }}/academix"
 
-letsencrypt_email: admin@yo-usac.com
+letsencrypt_email: yenyogamer290@gmail.com
 cors_origins: "*"
 image_tag: latest
 
-postgres_password: CAMBIAR_POSTGRES_PASSWORD
+# No es secreto: es el usuario por defecto de la imagen de RabbitMQ.
 rabbitmq_user: guest
-rabbitmq_pass: CAMBIAR_RABBITMQ_PASS
-
-jwt_secret: CAMBIAR_JWT_SECRET
-admin_password: CAMBIAR_ADMIN_PASSWORD
-cert_signing_seed: CAMBIAR_CERT_SIGNING_SEED

@@ -1,9 +1,9 @@
 output "ips_publicas" {
   description = "IPs públicas asignadas a cada una de las instancias."
   value = {
-    vm_development   = google_compute_address.desarrollo.address
+    vm_development    = google_compute_address.desarrollo.address
     vm_production_k3s = google_compute_address.k3s.address
-    vm_database      = google_compute_address.base_de_datos.address
+    vm_database       = google_compute_address.base_de_datos.address
   }
 }
 
@@ -25,18 +25,18 @@ output "ip_vm_database" {
 output "ips_internas" {
   description = "IPs privadas dentro de la VPC, usadas por el inventario de Ansible cuando se prefiere SSH interno."
   value = {
-    vm_development   = google_compute_instance.vm_development.network_interface[0].network_ip
+    vm_development    = google_compute_instance.vm_development.network_interface[0].network_ip
     vm_production_k3s = google_compute_instance.vm_production_k3s.network_interface[0].network_ip
-    vm_database      = google_compute_instance.vm_database.network_interface[0].network_ip
+    vm_database       = google_compute_instance.vm_database.network_interface[0].network_ip
   }
 }
 
 output "nombres_instancias" {
   description = "Nombres de las instancias creadas."
   value = {
-    vm_development   = google_compute_instance.vm_development.name
+    vm_development    = google_compute_instance.vm_development.name
     vm_production_k3s = google_compute_instance.vm_production_k3s.name
-    vm_database      = google_compute_instance.vm_database.name
+    vm_database       = google_compute_instance.vm_database.name
   }
 }
 
@@ -70,10 +70,10 @@ output "comandos_ssh" {
 output "inventario_ansible" {
   description = "Hosts listos para copiar en el inventario de Ansible."
   value = {
-    desarrollo     = google_compute_address.desarrollo.address
-    k3s            = google_compute_address.k3s.address
-    base_de_datos  = google_compute_address.base_de_datos.address
-    usuario        = var.ssh_user
+    desarrollo    = google_compute_address.desarrollo.address
+    k3s           = google_compute_address.k3s.address
+    base_de_datos = google_compute_address.base_de_datos.address
+    usuario       = var.ssh_user
   }
 }
 

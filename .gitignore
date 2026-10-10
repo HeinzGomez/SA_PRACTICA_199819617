@@ -1,0 +1,52 @@
+# =============================================================
+#  Secretos y ficheros sensibles · todo el repositorio
+#  (lo que NO debe salir nunca de esta máquina)
+# =============================================================
+
+# --- Llaves y certificados ---
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+*.ppk
+
+# --- Credenciales de nube (GCP, etc.) ---
+*service-account*.json
+*credentials*.json
+credentials.json
+gcloud.json
+
+# --- Kubernetes ---
+.kube/
+kubeconfig
+*.kubeconfig
+
+# --- Terraform: estado y planes (contienen IPs, dependencias y valores) ---
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# --- Ansible ---
+*.retry
+.vault-pass*
+vault-password*
+# Secretos locales (el fichero .example SÍ se versiona)
+99-secretos.yml
+!99-secretos.yml.example
+
+# --- Variables de entorno ---
+.env
+.env.*
+!.env.example
+!.env.*.example

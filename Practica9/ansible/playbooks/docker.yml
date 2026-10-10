@@ -36,6 +36,10 @@
           - gnupg
         state: present
 
+    # executable: /bin/bash es obligatorio. Ansible usa /bin/sh por defecto y en
+    # Ubuntu /bin/sh -> dash, que NO soporta "set -o pipefail" y aborta con
+    #   /bin/sh: 1: set: Illegal option -o pipefail
+    # dejando la clave GPG sin instalar. bash sí lo soporta.
     - name: Importar la llave GPG oficial de Docker
       ansible.builtin.shell: |
         set -o errexit
@@ -43,6 +47,7 @@
         curl -fsSL {{ docker_repo_url }}/gpg | gpg --dearmor -o {{ docker_keyring }}
         chmod a+r {{ docker_keyring }}
       args:
+        executable: /bin/bash
         creates: "{{ docker_keyring }}"
 
     - name: Agregar el repositorio estable de Docker

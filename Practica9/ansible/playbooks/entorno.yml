@@ -20,3 +20,50 @@
         group: "{{ ansible_user }}"
         mode: "0600"
         backup: true
+
+    # ------------------------------------------------------------------
+    # vm-development: docker-compose.cloud.yml
+    #
+    # El DUEÑO de este archivo es el pipeline (job deploy-vm, appleboy/scp-action)
+    # que entra como {{ ansible_user }}. Por eso:
+    #   owner  -> el scp del pipeline SIEMPRE puede sobreescribirlo (si aquí
+    #             quedara como root daría "permission denied" y el job fallaría);
+    #   force: no -> Ansible solo lo crea si no existe y jamás pisa lo que ya
+    #             puso el pipeline.
+    # ------------------------------------------------------------------
+    - name: Copiar docker-compose.cloud.yml (el dueño es el pipeline)
+      ansible.builtin.copy:
+        src: ../../docker-compose.cloud.yml
+        dest: "{{ academix_dir }}/docker-compose.cloud.yml"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0644"
+        force: no
+      when: inventory_hostname in groups['desarrollo']
+
+    # ------------------------------------------------------------------
+    # infra/postgres/init.sql: crea auth_db, talleres_db, reservas_db y
+    # certificados_db en el primer arranque del Postgres.
+    #
+    # En vm-development lo reemplaza el pipeline (force: no).
+    # En vm-database NADIE más lo copia, así que ahí Ansible sí debe poder
+    # actualizarlo (force: true), o un cambio futuro en init.sql nunca llegaría.
+    # ------------------------------------------------------------------
+    # El modulo copy NO crea directorios intermedios: sin esto falla con
+    #   "Destination directory ... does not exist"
+    - name: Crear la carpeta infra/postgres/
+      ansible.builtin.file:
+        path: "{{ academix_dir }}/infra/postgres"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0755"
+
+    - name: Copiar infra/postgres/init.sql
+      ansible.builtin.copy:
+        src: ../../infra/postgres/init.sql
+        dest: "{{ academix_dir }}/infra/postgres/init.sql"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0644"
+        force: "{{ inventory_hostname in groups['base_de_datos'] }}"

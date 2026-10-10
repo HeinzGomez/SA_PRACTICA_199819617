@@ -69,6 +69,12 @@ variable "allowed_k3s_api_cidrs" {
   default     = ["0.0.0.0/0"]
 }
 
+variable "allowed_db_cidrs" {
+  description = "Orígenes permitidos para PostgreSQL (5432) en vm-database. Mantener dentro de la VPC (10.10.0.0/16) para que solo las tres VMs accedan; exponerlo a 0.0.0.0/0 dejaría la BD de producción a prueba de contraseñas desde internet."
+  type        = list(string)
+  default     = ["10.10.0.0/16"]
+}
+
 variable "telemetry_ports" {
   description = "Puertos TCP de telemetría (Prometheus, Grafana, node-exporter)."
   type        = list(string)
@@ -76,9 +82,9 @@ variable "telemetry_ports" {
 }
 
 variable "telemetry_cidrs" {
-  description = "Orígenes permitidos para los puertos de telemetría."
+  description = "Orígenes permitidos para la telemetría (Grafana 3000, Prometheus 9090, node-exporter 9100)."
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = ["10.10.0.0/16"]
 }
 
 variable "machine_type_desarrollo" {
