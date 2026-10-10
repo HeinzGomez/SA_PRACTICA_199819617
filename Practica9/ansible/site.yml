@@ -1,0 +1,21 @@
+---
+# Punto de entrada único:  ansible-playbook -i inventory.ini site.yml
+# Cada paso es un playbook independiente para poder ejecutarlo por separado.
+
+# 01 · Todas las VMs: repositorios, utilitarios y securización de SSH
+- import_playbook: playbooks/base.yml
+
+# 02 · vm-development y vm-database: Docker + Docker Compose + grupo docker
+- import_playbook: playbooks/docker.yml
+
+# 03 · vm-production-k3s: servidor/control-plane de K3s
+- import_playbook: playbooks/k3s.yml
+
+# 04 · vm-production-k3s: ingress (controlador + cert-manager)
+- import_playbook: playbooks/ingress.yml
+
+# 05 · vm-development y vm-database: carpeta academix/ con su .env
+- import_playbook: playbooks/entorno.yml
+
+# 06 · vm-database: PostgreSQL de producción (compose + infra + arranque)
+- import_playbook: playbooks/db.yml
