@@ -1,4 +1,4 @@
-# YOUSAC Academix Pass & CertiHub — Mini-proyecto (Práctica 7)
+# YOUSAC Academix Pass & CertiHub — Mini-proyecto (Práctica 9)
 
 **Frontend en Vercel:**
 https://sa-practica-199819617-r9295g3sg-usac3.vercel.app

@@ -218,12 +218,12 @@ jobs:
           echo "### ${{ matrix.imagen.nombre }}" >> "$GITHUB_STEP_SUMMARY"
           echo '${{ steps.meta.outputs.tags }}' | sed 's/^/- `/; s/$/`/' >> "$GITHUB_STEP_SUMMARY"
 
-  # ------------------------------------------------------------------ Despliegue Continuo (CD) a VM · SOLO develop
+  # ------------------------------------------------------------------ Despliegue Continuo (CD) a VM · develop y release
   deploy-vm:
     name: Deploy CD a la VM (docker compose pull)
     runs-on: ubuntu-latest
     needs: [build-and-push]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/release')
     permissions:
       contents: read
       packages: read

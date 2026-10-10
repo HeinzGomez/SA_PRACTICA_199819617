@@ -9,6 +9,8 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -24,22 +26,41 @@ func mensajePrueba() domain.MensajeReserva {
 	}
 }
 
-// ackFalso registra lo que el consumidor le pide al canal AMQP.
+// ackFalso registra lo que el consumidor le pide al canal AMQP. Los contadores
+// se protegen con un mutex porque procesarRPC atiende varios mensajes a la vez y
+// todas las goroutines comparten la misma instancia del mock.
 type ackFalso struct {
+	mu                    sync.Mutex
 	acks, nacks, rechazos int
 	requeue               bool
 }
 
-func (a *ackFalso) Ack(tag uint64, _ bool) error { a.acks++; return nil }
+func (a *ackFalso) Ack(tag uint64, _ bool) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.acks++
+	return nil
+}
 func (a *ackFalso) Nack(tag uint64, _ bool, requeue bool) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	a.nacks++
 	a.requeue = requeue
 	return nil
 }
 func (a *ackFalso) Reject(tag uint64, requeue bool) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	a.rechazos++
 	a.requeue = requeue
 	return nil
+}
+
+// totales lee los contadores de forma segura.
+func (a *ackFalso) totales() (acks, nacks, rechazos int, requeue bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.acks, a.nacks, a.rechazos, a.requeue
 }
 
 func entrega(ack *ackFalso, rk, cuerpo string) amqp.Delivery {
@@ -50,8 +71,9 @@ func TestResolver_AckCuandoNoHayError(t *testing.T) {
 	ack := &ackFalso{}
 	resolver(context.Background(), entrega(ack, "rk", "{}"),
 		func(context.Context, amqp.Delivery) error { return nil })
-	if ack.acks != 1 || ack.nacks != 0 {
-		t.Errorf("se esperaba un solo ACK, hubo acks=%d nacks=%d", ack.acks, ack.nacks)
+	acks, nacks, _, _ := ack.totales()
+	if acks != 1 || nacks != 0 {
+		t.Errorf("se esperaba un solo ACK, hubo acks=%d nacks=%d", acks, nacks)
 	}
 }
 
@@ -59,10 +81,11 @@ func TestResolver_NackSinReencolarVaALaDLQ(t *testing.T) {
 	ack := &ackFalso{}
 	resolver(context.Background(), entrega(ack, "rk", "{}"),
 		func(context.Context, amqp.Delivery) error { return errors.New("boom") })
-	if ack.nacks != 1 || ack.acks != 0 {
-		t.Errorf("un error debe producir NACK (no ACK): acks=%d nacks=%d", ack.acks, ack.nacks)
+	acks, nacks, _, requeue := ack.totales()
+	if nacks != 1 || acks != 0 {
+		t.Errorf("un error debe producir NACK (no ACK): acks=%d nacks=%d", acks, nacks)
 	}
-	if ack.requeue {
+	if requeue {
 		t.Error("el NACK debe ser sin requeue para que el mensaje termine en la DLQ")
 	}
 }
@@ -102,21 +125,22 @@ func TestProcesarRPC_AtiendeEnParaleloYEsperaALasGoroutines(t *testing.T) {
 		canal <- entrega(acks, "rk", "{}")
 	}
 
-	var vistas int
+	var vistas atomic.Int64
 	salio := procesarRPC(ctx, canal, func(context.Context, amqp.Delivery) error {
 		time.Sleep(5 * time.Millisecond)
-		vistas++
+		vistas.Add(1)
 		cancel()
 		return nil
 	})
 	if !salio {
 		t.Error("se esperaba true tras cancelar")
 	}
-	if vistas != 3 {
-		t.Errorf("procesarRPC debe esperar a las respuestas pendientes: vistas=%d", vistas)
+	if vistas.Load() != 3 {
+		t.Errorf("procesarRPC debe esperar a las respuestas pendientes: vistas=%d", vistas.Load())
 	}
-	if acks.acks != 3 {
-		t.Errorf("cada mensaje confirmado debe hacer ACK: %d", acks.acks)
+	confirmados, _, _, _ := acks.totales()
+	if confirmados != 3 {
+		t.Errorf("cada mensaje confirmado debe hacer ACK: %d", confirmados)
 	}
 }
 
