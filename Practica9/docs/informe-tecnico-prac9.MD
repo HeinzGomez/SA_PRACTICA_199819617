@@ -56,42 +56,6 @@ Entorno: proyecto fiery-nimbus-508806-i4, región us-central1, zona us-central1-
 
 ![diagramaRed](./imgs/red/diagramaRed.png)
 
-```
-                             INTERNET
-                                │
-        ┌───────────────────────┼───────────────────────┐
-        │  academixdev          │          academixk3s  │
-        │  .yo-usac.com         │          .yo-usac.com │
-        │  (registro A TTL 60)  │          (A TTL 60)   │
-        ▼                       ▼                       │
- ┌──────────────┐                          ┌──────────────┐
- │ vm-          │                          │ vm-          │
- │ development  │                          │ production-  │
- │              │                          │ k3s          │
- └──────────────┘                          └──────────────┘
-        │                                        │
- ═══════╪════════════════════════════════════════╪═══════════
-        │      VPC  academix-network             │
-        │      10.10.0.0/16 · REGIONAL           │
-        │      subredes automáticas: NO          │
-        │                                        │
-        │  ┌─────────────────┐ ┌────────────────┐ │ ┌────────────────┐
-        ├─ │ subnet          │ │ subnet         │ │ │ subnet         │
-           │ desarrollo      │ │ k3s            │ │ │ base-de-datos  │
-           │ 10.10.1.0/24    │ │ 10.10.2.0/24   │ │ │ 10.10.3.0/24   │
-           │                 │ │                │ │ │                │
-           │ vm-development  │ │ vm-production- │ │ │ vm-database    │
-           │ 10.10.1.2       │ │ k3s 10.10.2.2  │ │ │ 10.10.3.2      │
-           │ e2-medium       │ │ e2-standard-2  │ │ │ e2-medium      │
-           │ disco 10 GB     │ │ disco 25 GB    │ │ │ disco 15 GB    │
-           │ tags: academix, │ │ tags: academix,│ │ │ tags: academix,│
-           │  web,           │ │  web, k3s      │ │ │  database      │
-           │  development    │ │                │ │ │                │
-           └─────────────────┘ └────────────────┘ │ └────────────────┘
-                                                  │
-        private_ip_google_access = true en las tres subredes
-```
-
 Los tres servicios de Google Cloud habilitados por el código son Compute Engine y Cloud DNS; la zona DNS yo-usac-com no la crea el proyecto, solo se consulta como fuente de datos.
 
 ### 2.2 Subredes e instancias
