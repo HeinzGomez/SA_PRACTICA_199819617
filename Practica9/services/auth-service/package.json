@@ -36,6 +36,10 @@
       "src/**/*.ts",
       "!src/app.ts"
     ],
+    "coverageReporters": [
+      "text",
+      "json-summary"
+    ],
     "coverageThreshold": {
       "global": {
         "statements": 70,
