@@ -1,0 +1,117 @@
+---
+- name: K3s · instalación y arranque como servidor/control-plane
+  hosts: k3s
+  become: true
+
+  vars:
+    k3s_installador: /tmp/k3s-install.sh
+    k3s_kubeconfig: /etc/rancher/k3s/k3s.yaml
+    k3s_carpeta_kubeconfig_local: "{{ playbook_dir | dirname }}/.kube"
+    k3s_kubeconfig_local: "{{ playbook_dir | dirname }}/.kube/config"
+    k3s_exec: >-
+      server
+      --tls-san {{ ansible_host }}
+      {{ '--disable ' + (k3s_servicios_desactivados | join(' --disable '))
+         if k3s_servicios_desactivados | length > 0 else '' }}
+
+  tasks:
+    - name: Comprobar que no hay swap activa (K3s no arranca con swap)
+      ansible.builtin.command: swapon --show
+      register: swap_actual
+      changed_when: false
+      failed_when: false
+
+    - name: Desactivar swap si estuviera habilitada
+      ansible.builtin.command: swapoff -a
+      when: swap_actual.stdout | trim | length > 0
+
+    - name: Descargar el instalador oficial de K3s
+      ansible.builtin.get_url:
+        url: https://get.k3s.io
+        dest: "{{ k3s_installador }}"
+        mode: "0755"
+
+    - name: Instalar K3s en modo server/control-plane
+      ansible.builtin.command: "{{ k3s_installador }}"
+      args:
+        creates: /usr/local/bin/k3s
+      environment:
+        INSTALL_K3S_EXEC: "{{ k3s_exec }}"
+
+    - name: Servicio de k3s activo y habilitado al arrancar
+      ansible.builtin.service:
+        name: k3s
+        state: started
+        enabled: true
+
+    - name: Esperar a que el servicio k3s esté activo
+      ansible.builtin.command: systemctl is-active k3s
+      register: estado_k3s
+      changed_when: false
+      until: estado_k3s.rc == 0 and estado_k3s.stdout == 'active'
+      retries: 30
+      delay: 5
+
+    - name: Esperar a que el nodo quede en estado Ready
+      ansible.builtin.command: kubectl get nodes --no-headers
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      register: nodos
+      changed_when: false
+      until: "' Ready ' in nodos.stdout + ' '"
+      retries: 40
+      delay: 5
+
+    - name: Carpeta .kube en la máquina de administración
+      ansible.builtin.file:
+        path: "{{ k3s_carpeta_kubeconfig_local }}"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Extraer el kubeconfig hacia la máquina de administración
+      ansible.builtin.fetch:
+        src: "{{ k3s_kubeconfig }}"
+        dest: "{{ k3s_kubeconfig_local }}"
+        flat: true
+
+    - name: Apuntar el kubeconfig a la IP pública del nodo
+      ansible.builtin.replace:
+        path: "{{ k3s_kubeconfig_local }}"
+        regexp: 'https://127.0.0.1:6443'
+        replace: "https://{{ ansible_host }}:6443"
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Permisos 0600 sobre el kubeconfig extraído
+      ansible.builtin.file:
+        path: "{{ k3s_kubeconfig_local }}"
+        state: file
+        mode: "0600"
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Carpeta ~/.kube en la máquina de administración
+      ansible.builtin.file:
+        path: "{{ lookup('env', 'HOME') }}/.kube"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      become: false
+      run_once: true
+      when: instalar_kubeconfig_en_kubectl | bool
+
+    - name: Instalar el kubeconfig en ~/.kube/config (con copia de seguridad)
+      ansible.builtin.copy:
+        src: "{{ k3s_kubeconfig_local }}"
+        dest: "{{ lookup('env', 'HOME') }}/.kube/config"
+        mode: "0600"
+        backup: true
+      delegate_to: localhost
+      become: false
+      run_once: true
+      when: instalar_kubeconfig_en_kubectl | bool

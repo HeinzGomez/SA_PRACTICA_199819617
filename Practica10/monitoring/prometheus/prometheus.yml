@@ -1,0 +1,78 @@
+# HeinzGomez - Practica 10: configuracion de Prometheus (entorno local / Docker Compose)
+#   http://localhost:9090 -> UI de Prometheus
+#   En K3s la misma configuracion se adapta a ServiceMonitor/static-configs dentro del cluster.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+alerting:
+  alertmanagers: []
+
+scrape_configs:
+  # --- Self monitoring -------------------------------------------------------
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # --- Metricas de contenedores (CPU / memoria / red de los "pods" ---------
+  # cadvisor expone lo mismo que kubelet en K3s, por eso los paneles de
+  # infraestructura funcionan igual en compose y en el cluster.
+  - job_name: cadvisor
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["cadvisor:8080"]
+
+  # --- Metricas del nodo host (CPU, memoria, disco, red) --------------------
+  - job_name: node-exporter
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  # --- Message Broker (RabbitMQ) -------------------------------------------
+  # /metrics/per-object agrega las etiquetas queue= y vhost= a las metricas de
+  # cola, indispensables para medir la longitud de cada cola en Grafana.
+  - job_name: rabbitmq
+    scrape_interval: 15s
+    metrics_path: /metrics/per-object
+    static_configs:
+      - targets: ["rabbitmq:15692"]
+
+  # --- Aplicacion ------------------------------------------------------------
+  # El API Gateway expone /metrics (prom-client) en su mismo puerto HTTP.
+  - job_name: api-gateway
+    scrape_interval: 15s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api-gateway:8080"]
+
+  # El Servicio de Auth (Node) expone /metrics (prom-client).
+  - job_name: auth-service
+    scrape_interval: 15s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["auth-service:8091"]
+
+  # El Servicio de Talleres (Node) expone /metrics (prom-client).
+  - job_name: talleres-service
+    scrape_interval: 15s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["talleres-service:8092"]
+
+  # El Servicio de Certificados (Python) expone /metrics (prometheus_client).
+  - job_name: certificados-service
+    scrape_interval: 15s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["certificados-service:8094"]
+
+  # El Servicio de Reservas (Go) expone /metrics (prometheus/client_golang).
+  - job_name: reservas-service
+    scrape_interval: 15s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["reservas-service:8093"]

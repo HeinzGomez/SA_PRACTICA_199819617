@@ -11,6 +11,7 @@
 id_rsa*
 id_ed25519*
 *.ppk
+inventory.ini
 
 # --- Credenciales de nube (GCP, etc.) ---
 *service-account*.json

@@ -1,0 +1,20 @@
+# HeinzGomez - Práctica 7
+node_modules/
+dist/
+.next/
+coverage/
+__pycache__/
+.pytest_cache/
+.coverage
+coverage.xml
+pytest-report.xml
+coverage.out
+go-test.log
+*.tsbuildinfo
+.env
+.env*.local
+.vercel
+next-env.d.ts
+
+# Guía personal (no se versiona)
+GUIA-PUBLICACION.md

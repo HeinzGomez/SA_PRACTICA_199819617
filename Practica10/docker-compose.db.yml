@@ -1,0 +1,53 @@
+# HeinzGomez - Práctica 9: PostgreSQL del entorno de PRODUCCIÓN (vm-database).
+#
+# El backend desplegado en K3s (vm-production-k3s) se conecta aquí por la IP
+# interna de esta VM (10.10.3.x, subred subnet_base_de_datos_cidr en Terraform).
+# El entorno de DESARROLLO (vm-development) no usa este archivo: allí el Postgres
+# nace dentro de docker-compose.cloud.yml.
+#
+# Uso (lo gestiona Ansible, playbooks/db.yml):
+#   docker compose -f docker-compose.db.yml up -d
+#
+# Filtro de seguridad: el firewall de GCP (google_compute_firewall.postgres,
+# 5432 a allowed_db_cidrs). Docker publica en 0.0.0.0, GCP corta antes.
+
+name: academix-db
+
+x-common: &comun
+  restart: unless-stopped
+  networks: [academix]
+
+services:
+  postgres:
+    <<: *comun
+    image: postgres:16-alpine
+    container_name: academix-postgres
+    environment:
+      POSTGRES_USER: academix
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-academix}
+      POSTGRES_DB: postgres
+    # La imagen oficial ya añade "host all all all scram-sha-256" a pg_hba.conf,
+    # así que las conexiones remotas con contraseña están permitidas.
+    # listen_addresses=* es obligatorio: por defecto solo escucha en localhost y
+    # los pods de K3s no llegarían a 10.10.3.x:5432.
+    command: ["postgres", "-c", "listen_addresses=*"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    # "ports" y no "expose": expose solo declara intención dentro de la red del
+    # compose. Para que otro host (los pods de K3s) llegue hace falta publicarlo
+    # en la interfaz de esta VM.
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U academix -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks: [academix]
+
+networks:
+  academix:
+
+volumes:
+  pgdata:

@@ -1,0 +1,145 @@
+---
+- name: Ingress · controlador ingress-nginx y cert-manager en el clúster
+  hosts: k3s
+  become: true
+
+  vars:
+    k3s_kubeconfig: /etc/rancher/k3s/k3s.yaml
+    helm_instalador: /tmp/get-helm-3
+
+  tasks:
+    - name: Verificar que K3s ya está instalado
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s
+      register: k3s_binario
+
+    - name: Abortar si falta K3s
+      ansible.builtin.assert:
+        that: k3s_binario.stat.exists
+        fail_msg: "Ejecuta primero playbooks/k3s.yml (o site.yml completo)."
+
+    - name: Descargar el instalador de Helm
+      ansible.builtin.get_url:
+        url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        dest: "{{ helm_instalador }}"
+        mode: "0755"
+
+    - name: Instalar Helm
+      ansible.builtin.command: "{{ helm_instalador }}"
+      args:
+        creates: /usr/local/bin/helm
+
+    - name: Registrar el repositorio de ingress-nginx
+      ansible.builtin.command: >-
+        helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+        --force-update
+      changed_when: false
+
+    - name: Registrar el repositorio de cert-manager
+      ansible.builtin.command: >-
+        helm repo add jetstack https://charts.jetstack.io
+        --force-update
+      changed_when: false
+      when: instalar_cert_manager | bool
+
+    - name: Actualizar los índices de Helm
+      ansible.builtin.command: helm repo update
+      changed_when: false
+
+    # Con hostNetwork el controlador escucha directamente en los puertos 80/443
+    # del NODO, y el firewall de GCP (regla "http-https", tag "web") ya deja pasar
+    # ese tráfico. Por eso NO hace falta un Service de tipo LoadBalancer: en GCP
+    # ServiceLB nunca recibe una IP externa (la IP real está detrás de NAT y no
+    # aparece en ninguna interfaz), el status queda vacío y el paso de espera
+    # posterior fallaría tras 150 s. Además el enunciado pide que SOLO existan
+    # servicios ClusterIP y que api-gateway salga por Ingress.
+    #   hostNetwork=true  -> nginx escucha en el nodo (80/443)
+    #   dnsPolicy=...     -> OBLIGATORIO: sin él el pod no resuelve
+    #                         *.svc.cluster.local y el webhook de validación falla
+    # KUBECONFIG es obligatorio aquí. Sin él helm mira ~/.kube/config (que con
+    # become: true es /root/.kube/config y no existe) y acaba en el default
+    #   http://localhost:8080 -> "Kubernetes cluster unreachable"
+    # El kubeconfig de K3s vive en /etc/rancher/k3s/k3s.yaml, igual que en las
+    # tareas de kubectl de abajo.
+    - name: Instalar el controlador ingress-nginx
+      ansible.builtin.command: >-
+        helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx
+        --namespace {{ ingress_nginx_namespace }}
+        --create-namespace
+        --set controller.service.type=ClusterIP
+        --set controller.hostNetwork=true
+        --set controller.dnsPolicy=ClusterFirstWithHostNet
+        --wait
+        --timeout 5m
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      when: instalar_ingress_nginx | bool
+
+    - name: Instalar cert-manager (certificados TLS automáticos)
+      ansible.builtin.command: >-
+        helm upgrade --install cert-manager jetstack/cert-manager
+        --namespace {{ cert_manager_namespace }}
+        --create-namespace
+        --set crds.enabled=true
+        --set installCRDs=true
+        --wait
+        --timeout 5m
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      when: instalar_cert_manager | bool
+
+    - name: Esperar a que los controladores estén disponibles
+      ansible.builtin.command: >-
+        kubectl wait --for=condition=Available deployment --all
+        -n {{ cert_manager_namespace }}
+        --timeout=300s
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      register: cert_manager_listo
+      changed_when: "' condition met' in cert_manager_listo.stdout"
+      when: instalar_cert_manager | bool
+
+    - name: Publicar el ClusterIssuer de Let's Encrypt
+      ansible.builtin.template:
+        src: ../templates/cluster-issuer.j2
+        dest: /tmp/cluster-issuer.yaml
+        owner: root
+        group: root
+        mode: "0644"
+      when: instalar_cert_manager | bool
+
+    - name: Aplicar el ClusterIssuer en el clúster
+      ansible.builtin.command: kubectl apply -f /tmp/cluster-issuer.yaml
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      register: issuer_aplicado
+      changed_when: "'created' in issuer_aplicado.stdout or 'configured' in issuer_aplicado.stdout"
+      when: instalar_cert_manager | bool
+
+    # Antes aquí se esperaba a que el Service tuviera una IP externa en
+    # .status.loadBalancer.ingress. Con controller.service.type=ClusterIP ese
+    # campo queda vacío, la tarea reintentaba 30×5 s = 150 s y SIEMPRE fallaba.
+    # Con hostNetwork la señal real de que nginx está sirviendo es que el pod
+    # del controlador esté Ready.
+    - name: Esperar a que el controlador de ingress esté listo
+      ansible.builtin.command: >-
+        kubectl wait --for=condition=Ready pod
+        -l app.kubernetes.io/component=controller
+        -n {{ ingress_nginx_namespace }}
+        --timeout=180s
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      register: ingress_listo
+      changed_when: "' condition met' in ingress_listo.stdout"
+      when: instalar_ingress_nginx | bool
+
+    - name: Verificar que el controlador de ingress está corriendo
+      ansible.builtin.command: >-
+        kubectl get pods -n {{ ingress_nginx_namespace }}
+        -l app.kubernetes.io/component=controller
+        --no-headers
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      register: pods_ingress
+      changed_when: false
+      when: instalar_ingress_nginx | bool
