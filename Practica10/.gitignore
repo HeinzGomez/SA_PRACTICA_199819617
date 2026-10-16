@@ -18,3 +18,6 @@ next-env.d.ts
 
 # Guía personal (no se versiona)
 GUIA-PUBLICACION.md
+
+# Carpeta temporal de pruebas de K3s (NO se sube; entorno descartable)
+pruebask3s/

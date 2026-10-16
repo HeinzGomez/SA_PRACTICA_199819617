@@ -1,0 +1,7 @@
+# HeinzGomez - Práctica 10: namespace del stack Academix en K3s
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: academix
+  labels:
+    app.kubernetes.io/part-of: academix

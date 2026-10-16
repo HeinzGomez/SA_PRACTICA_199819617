@@ -1,0 +1,29 @@
+# HeinzGomez - Práctica 10: aprovisionamiento de los tableros de Grafana (ConfigMap).
+# Migrado desde monitoring/grafana/provisioning/dashboards/dashboards.yml:
+# todo JSON montado en /var/lib/grafana/dashboards (ConfigMap grafana-dashboards)
+# se carga automáticamente en la carpeta "Academix".
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning-dashboards
+  namespace: academix
+  labels:
+    app.kubernetes.io/part-of: academix
+    app: grafana
+data:
+  dashboards.yml: |
+    apiVersion: 1
+
+    providers:
+      - name: academix
+        orgId: 1
+        folder: Academix
+        folderUid: academix
+        type: file
+        disableDeletion: false
+        editable: true
+        updateIntervalSeconds: 30
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards
+          foldersFromFilesStructure: false

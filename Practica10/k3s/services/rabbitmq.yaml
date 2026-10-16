@@ -1,0 +1,27 @@
+# HeinzGomez - Práctica 10: servicio interno de RabbitMQ.
+# Incluye la consola de administración (15672) y el plugin de métricas (15692) solo dentro del cluster.
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: academix
+  labels:
+    app: rabbitmq
+    app.kubernetes.io/part-of: academix
+spec:
+  type: ClusterIP
+  selector:
+    app: rabbitmq
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: amqp
+      protocol: TCP
+    - name: management
+      port: 15672
+      targetPort: management
+      protocol: TCP
+    - name: metrics
+      port: 15692
+      targetPort: metrics
+      protocol: TCP

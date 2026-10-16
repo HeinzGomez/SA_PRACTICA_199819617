@@ -1,0 +1,131 @@
+# HeinzGomez - Práctica 10: Grafana en el cluster (mismos ajustes que el compose).
+# - Datasource y tableros aprovisionados por ConfigMaps (sin tocar la imagen).
+# - /var/lib/grafana va al PVC (base sqlite + plugins); los tableros del
+#   ConfigMap se montan anidados en /var/lib/grafana/dashboards.
+# - Credenciales admin desde el Secret secretos-servicios.
+# - La UI se publica por el Ingress k3s/ingress/grafana.yaml (https://grafana.academixk3s.yo-usac.com).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-datos
+  namespace: academix
+  labels:
+    app: grafana
+    app.kubernetes.io/part-of: academix
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: academix
+  labels:
+    app: grafana
+    app.kubernetes.io/part-of: academix
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  strategy:
+    type: Recreate          # PVC RWO
+  template:
+    metadata:
+      labels:
+        app: grafana
+        app.kubernetes.io/part-of: academix
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 472          # usuario grafana de la imagen oficial
+        fsGroup: 472
+      containers:
+        - name: grafana
+          image: grafana/grafana:11.2.0
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: secretos-servicios
+                  key: GRAFANA_ADMIN_USER
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: secretos-servicios
+                  key: GRAFANA_ADMIN_PASSWORD
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "true"
+            - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+              value: "Viewer"
+            - name: GF_AUTH_BASIC_ENABLED
+              value: "true"
+            - name: GF_ANALYTICS_REPORTING_ENABLED
+              value: "false"
+            - name: GF_ANALYTICS_CHECK_FOR_UPDATES
+              value: "false"
+            # Raíz pública detrás del Ingress (TLS de Let's Encrypt vía cert-manager).
+            - name: GF_SERVER_ROOT_URL
+              value: "https://grafana.academixk3s.yo-usac.com"   # TODO(IaC): DNS pendiente
+            - name: GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH
+              value: /var/lib/grafana/dashboards/infraestructura.json
+          volumeMounts:
+            - name: datos
+              mountPath: /var/lib/grafana
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards
+              readOnly: true
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources/datasource.yml
+              subPath: datasource.yml
+              readOnly: true
+            - name: provisioning-dashboards
+              mountPath: /etc/grafana/provisioning/dashboards/dashboards.yml
+              subPath: dashboards.yml
+              readOnly: true
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "160Mi"
+            limits:
+              cpu: "300m"
+              memory: "384Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: datos
+          persistentVolumeClaim:
+            claimName: grafana-datos
+        - name: dashboards
+          configMap:
+            name: grafana-dashboards
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        - name: provisioning-dashboards
+          configMap:
+            name: grafana-provisioning-dashboards

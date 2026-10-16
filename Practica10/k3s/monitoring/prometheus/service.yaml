@@ -1,0 +1,18 @@
+# HeinzGomez - Práctica 10: servicio interno de Prometheus (lo consume Grafana).
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: academix
+  labels:
+    app: prometheus
+    app.kubernetes.io/part-of: academix
+spec:
+  type: ClusterIP
+  selector:
+    app: prometheus
+  ports:
+    - name: http
+      port: 9090
+      targetPort: http
+      protocol: TCP

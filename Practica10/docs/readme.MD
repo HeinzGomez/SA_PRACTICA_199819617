@@ -68,6 +68,17 @@
     - [3.4.4.3 CDU 4.2 Descripcion Textual](#3443-cdu-42-descripcion-textual)
     - [3.4.4.4 CDU 4.3 Descripcion Textual](#3444-cdu-43-descripcion-textual)
     - [3.4.4.5 CDU 4.4 Descripcion Textual](#3445-cdu-44-descripcion-textual)
+    - [3.4.5 CDU 5](#345-cdu-5)
+    - [3.4.5.1 CDU 5.1 Consulta de Metricas del Sistema](#3451-cdu-51-consulta-de-metricas-del-sistema)
+    - [3.4.5.2 CDU 5.2 Consulta de Salud del Sistema](#3452-cdu-52-consulta-de-salud-del-sistema)
+    - [3.4.5.3 CDU 5.3 Consulta de Metricas Broker](#3453-cdu-53-consulta-de-metricas-broker)
+    - [3.5.6 CDU 6](#356-cdu-6)
+    - [3.5.6.1 CDU 6.1 Vinculacion de Cuenta YoUsac](#3561-cdu-61-vinculacion-de-cuenta-yousac)
+    - [3.5.6.2 CDU 6.2 Autenticarse](#3562-cdu-62-autenticarse)
+    - [3.5.6.3 CDU 6.3 Crear Cuenta](#3563-cdu-63-crear-cuenta)
+    - [3.5.6.4 CDU 6.4 Consultar Talleres](#3564-cdu-64-consultar-talleres)
+    - [3.5.6.5 CDU 6.5 Reservar Cupo](#3565-cdu-65-reservar-cupo)
+    - [3.5.6.6 CDU 6.6 Consulta de Certificados](#3566-cdu-66-consulta-de-certificados)
 - [4. Vista 4+1](#4-vista-41)
   - [4.1 Vista Escenario](#41-vista-escenario)
     - [Reserva de cupo en una actividad académica](#reserva-de-cupo-en-una-actividad-académica)
@@ -372,6 +383,51 @@ Principales
 ### 3.4.4.5 CDU 4.4 Descripcion Textual
 
 ![CDU4.4](./imgs/CDUs/CDU4/CDU4.4.png)
+
+
+### 3.4.5 CDU 5
+
+![CDU5](./imgs/CDUs/CDU5/CDU5.png)
+
+### 3.4.5.1 CDU 5.1 Consulta de Metricas del Sistema
+
+![CDU5.1](./imgs/CDUs/CDU5/CDU5.1.png)
+
+### 3.4.5.2 CDU 5.2 Consulta de Salud del Sistema
+
+![CDU5.2](./imgs/CDUs/CDU5/CDU5.2.png)
+
+### 3.4.5.3 CDU 5.3 Consulta de Metricas Broker
+
+![CDU5.3](./imgs/CDUs/CDU5/CDU5.3.png)
+
+### 3.5.6 CDU 6
+
+![CDU6](./imgs/CDUs/CDU6/CDU6.png)
+
+### 3.5.6.1 CDU 6.1 Vinculacion de Cuenta YoUsac
+
+![CDU6.1](./imgs/CDUs/CDU6/CDU6.1.png)
+
+### 3.5.6.2 CDU 6.2 Autenticarse
+
+![CDU6.1](./imgs/CDUs/CDU6/CDU6.2.png)
+
+### 3.5.6.3 CDU 6.3 Crear Cuenta
+
+![CDU6.1](./imgs/CDUs/CDU6/CDU6.3.png)
+
+### 3.5.6.4 CDU 6.4 Consultar Talleres
+
+![CDU6.1](./imgs/CDUs/CDU6/CDU6.4.png)
+
+### 3.5.6.5 CDU 6.5 Reservar Cupo
+
+![CDU6.1](./imgs/CDUs/CDU6/CDU6.5.png)
+
+### 3.5.6.6 CDU 6.6 Consulta de Certificados
+
+![CDU6.1](./imgs/CDUs/CDU6/CDU6.6.png)
 
 # 4. Vista 4+1
 

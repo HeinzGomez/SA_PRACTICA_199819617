@@ -1,0 +1,85 @@
+# HeinzGomez - Práctica 10: certificados-service (FastAPI; firma de certificados con semilla).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: certificados-service
+  namespace: academix
+  labels:
+    app: certificados-service
+    app.kubernetes.io/part-of: academix
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: certificados-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: certificados-service
+        app.kubernetes.io/part-of: academix
+    spec:
+      containers:
+        - name: certificados-service
+          image: ghcr.io/ramirotelles/academix-certificados-service:${IMAGE_TAG}
+          ports:
+            - containerPort: 8094
+              name: http
+          envFrom:
+            - configMapRef:
+                name: certificados-service-config
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: datos-conexiones
+                  key: DATABASE_URL_CERTIFICADOS
+            - name: RABBITMQ_URL
+              valueFrom:
+                secretKeyRef:
+                  name: datos-conexiones
+                  key: RABBITMQ_URL
+            - name: CERT_SIGNING_SEED
+              valueFrom:
+                secretKeyRef:
+                  name: secretos-servicios
+                  key: CERT_SIGNING_SEED
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          # Liveness: /health · Readiness: /health/ready (Postgres + broker).
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3

@@ -1,0 +1,68 @@
+# HeinzGomez - Práctica 10: cadvisor como DaemonSet en K3s.
+# Expone las métricas container_* que usan los paneles de infraestructura y la
+# alerta MemoriaContenedorAlta. En K3s el runtime es containerd (no hay
+# /var/lib/docker), por eso solo se montan las rutas que existen en el nodo.
+# Es el único pod privilegiado del stack (necesita /dev/kmsg y acceso al runtime).
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: cadvisor
+  namespace: academix
+  labels:
+    app: cadvisor
+    app.kubernetes.io/part-of: academix
+spec:
+  selector:
+    matchLabels:
+      app: cadvisor
+  template:
+    metadata:
+      labels:
+        app: cadvisor
+        app.kubernetes.io/part-of: academix
+    spec:
+      containers:
+        - name: cadvisor
+          image: gcr.io/cadvisor/cadvisor:v0.55.1
+          ports:
+            - containerPort: 8080
+              name: http
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: rootfs
+              mountPath: /rootfs
+              readOnly: true
+            - name: var-run
+              mountPath: /var/run
+              readOnly: true
+            - name: sys
+              mountPath: /sys
+              readOnly: true
+            - name: containerd
+              mountPath: /var/lib/containerd
+              readOnly: true
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "96Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+      tolerations:
+        # Para que también corra en nodos con taint (no aplica en single-node,
+        # pero deja el DS listo si el clúster crece).
+        - operator: Exists
+      volumes:
+        - name: rootfs
+          hostPath:
+            path: /
+        - name: var-run
+          hostPath:
+            path: /var/run
+        - name: sys
+          hostPath:
+            path: /sys
+        - name: containerd
+          hostPath:
+            path: /var/lib/containerd

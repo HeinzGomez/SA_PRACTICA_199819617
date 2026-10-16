@@ -1,0 +1,15 @@
+# HeinzGomez - Práctica 10: configuración no sensible del api-gateway (equivalente al compose).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-gateway-config
+  namespace: academix
+  labels:
+    app.kubernetes.io/part-of: academix
+    app: api-gateway
+data:
+  # El frontend corre en Vercel: se permite el dominio *.vercel.app y el custom (pendiente IaC).
+  CORS_ORIGINS: "https://*.vercel.app"
+  PORT: "8080"   # el gateway lee PORT (no PUERTO como los demás servicios)
+  LOG_LEVEL: "info"
+  SERVICE_VERSION: "1.0.0"

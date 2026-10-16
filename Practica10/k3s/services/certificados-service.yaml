@@ -1,0 +1,18 @@
+# HeinzGomez - Práctica 10: servicio interno del certificados-service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: certificados-service
+  namespace: academix
+  labels:
+    app: certificados-service
+    app.kubernetes.io/part-of: academix
+spec:
+  type: ClusterIP
+  selector:
+    app: certificados-service
+  ports:
+    - name: http
+      port: 8094
+      targetPort: http
+      protocol: TCP

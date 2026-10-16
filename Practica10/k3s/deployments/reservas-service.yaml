@@ -1,0 +1,86 @@
+# HeinzGomez - Práctica 10: reservas-service (Go; workers absorbiendo la cola reservas.solicitudes).
+# 6 workers (subidos de 4 del compose) para drenar ráfagas en la VM de 8 GB.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reservas-service
+  namespace: academix
+  labels:
+    app: reservas-service
+    app.kubernetes.io/part-of: academix
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reservas-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: reservas-service
+        app.kubernetes.io/part-of: academix
+    spec:
+      containers:
+        - name: reservas-service
+          image: ghcr.io/ramirotelles/academix-reservas-service:${IMAGE_TAG}
+          ports:
+            - containerPort: 8093
+              name: http
+          envFrom:
+            - configMapRef:
+                name: reservas-service-config
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: datos-conexiones
+                  key: DATABASE_URL_RESERVAS
+            - name: REDIS_ADDR
+              valueFrom:
+                secretKeyRef:
+                  name: datos-conexiones
+                  key: REDIS_ADDR
+            - name: RABBITMQ_URL
+              valueFrom:
+                secretKeyRef:
+                  name: datos-conexiones
+                  key: RABBITMQ_URL
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "96Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          # Liveness: /health · Readiness: /health/ready (Postgres + Redis + broker).
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
