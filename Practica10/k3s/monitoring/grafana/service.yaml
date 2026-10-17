@@ -1,0 +1,19 @@
+# HeinzGomez - Práctica 10: servicio interno de Grafana.
+# Lo consume el Ingress k3s/ingress/grafana.yaml (https://grafana.academixk3s.yo-usac.com).
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: academix
+  labels:
+    app: grafana
+    app.kubernetes.io/part-of: academix
+spec:
+  type: ClusterIP
+  selector:
+    app: grafana
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+      protocol: TCP

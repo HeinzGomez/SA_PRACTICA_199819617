@@ -1,0 +1,26 @@
+# HeinzGomez - Práctica 10: datasource de Prometheus aprovisionada automáticamente.
+# Migrada desde monitoring/grafana/provisioning/datasources/datasource.yml;
+# la URL cambia de "prometheus" del compose al DNS corto del namespace.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: academix
+  labels:
+    app.kubernetes.io/part-of: academix
+    app: grafana
+data:
+  datasource.yml: |
+    apiVersion: 1
+
+    datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+        editable: true
+        jsonData:
+          timeInterval: 15s
+          httpMethod: POST

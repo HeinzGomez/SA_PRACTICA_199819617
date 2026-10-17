@@ -1,0 +1,271 @@
+# HeinzGomez - Práctica 7: entorno de desarrollo completo (Docker Compose)
+#   docker compose up --build        -> frontend http://localhost:3000 · gateway http://localhost:8080
+#   RabbitMQ management               -> http://localhost:15672 (guest/guest)
+# HeinzGomez - Práctica 10: stack de observabilidad incluido en el mismo compose
+#   Prometheus                         -> http://localhost:9090
+#   Grafana                            -> http://localhost:3001 (admin/admin) · tableros "Infraestructura" y "Métricas de Negocio y Colas"
+#   Métricas de broker                 -> http://localhost:15692/metrics (plugin rabbitmq_prometheus)
+name: academix
+
+x-common: &comun
+  restart: unless-stopped
+  networks: [academix]
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: academix
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-academix}
+      POSTGRES_DB: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U academix -d postgres"]
+      interval: 5s
+      retries: 10
+    networks: [academix]
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+    networks: [academix]
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
+    ports: ["5672:5672", "15672:15672", "15692:15692"]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      retries: 12
+    networks: [academix]
+
+  auth-service:
+    <<: *comun
+    build: { context: ., dockerfile: services/auth-service/Dockerfile }
+    image: academix-auth-service:dev
+    environment:
+      DATABASE_URL: postgres://academix:${POSTGRES_PASSWORD:-academix}@postgres:5432/auth_db
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
+      JWT_SECRET: ${JWT_SECRET:-cambiar-este-secreto-en-produccion}
+      ADMIN_EMAIL: admin@ingenieria.usac.edu.gt
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin12345}
+      PUERTO: 8091
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      SERVICE_VERSION: ${SERVICE_VERSION:-1.0.0}
+    ports: ["8091:8091"]
+    healthcheck:
+      test: ["CMD", "node", "dist/observabilidad/healthcheck.js"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  talleres-service:
+    <<: *comun
+    build: { context: ., dockerfile: services/talleres-service/Dockerfile }
+    image: academix-talleres-service:dev
+    environment:
+      DATABASE_URL: postgres://academix:${POSTGRES_PASSWORD:-academix}@postgres:5432/talleres_db
+      REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
+      PUERTO: 8092
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      SERVICE_VERSION: ${SERVICE_VERSION:-1.0.0}
+    ports: ["8092:8092"]
+    healthcheck:
+      test: ["CMD", "node", "dist/observabilidad/healthcheck.js"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  reservas-service:
+    <<: *comun
+    build: { context: ., dockerfile: services/reservas-service/Dockerfile }
+    image: academix-reservas-service:dev
+    environment:
+      DATABASE_URL: postgres://academix:${POSTGRES_PASSWORD:-academix}@postgres:5432/reservas_db?sslmode=disable
+      REDIS_ADDR: redis:6379
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      WORKERS: "4"
+      PUERTO: 8093
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      SERVICE_VERSION: ${SERVICE_VERSION:-1.0.0}
+    ports: ["8093:8093"]
+    healthcheck:
+      test: ["CMD", "/reservas", "healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      talleres-service: { condition: service_started }
+
+  certificados-service:
+    <<: *comun
+    build: { context: ., dockerfile: services/certificados-service/Dockerfile }
+    image: academix-certificados-service:dev
+    environment:
+      DATABASE_URL: postgresql://academix:${POSTGRES_PASSWORD:-academix}@postgres:5432/certificados_db
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      CERT_SIGNING_SEED: ${CERT_SIGNING_SEED:-cambiar-esta-semilla-en-produccion}
+      PUERTO: 8094
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      SERVICE_VERSION: ${SERVICE_VERSION:-1.0.0}
+    ports: ["8094:8094"]
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.observabilidad.healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  api-gateway:
+    <<: *comun
+    build: { context: ., dockerfile: services/api-gateway/Dockerfile }
+    image: academix-api-gateway:dev
+    environment:
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      CORS_ORIGINS: http://localhost:3000,*.vercel.app
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      SERVICE_VERSION: ${SERVICE_VERSION:-1.0.0}
+    ports: ["8080:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      auth-service: { condition: service_started }
+      talleres-service: { condition: service_started }
+      reservas-service: { condition: service_started }
+      certificados-service: { condition: service_started }
+      rabbitmq: { condition: service_healthy }
+
+  frontend:
+    <<: *comun
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8080
+    image: academix-frontend:dev
+    ports: ["3000:3000"]
+    depends_on:
+      api-gateway: { condition: service_healthy }
+
+  # ---------------------------------------------------------------------------
+  # Observabilidad (Práctica 10) - Prometheus + Grafana
+  # ---------------------------------------------------------------------------
+  prometheus:
+    <<: *comun
+    image: prom/prometheus:latest
+    container_name: academix-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules:ro
+      - promdata:/prometheus
+    ports: ["9090:9090"]
+    depends_on:
+      - rabbitmq
+      - cadvisor
+      - node-exporter
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:9090/-/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.55.1
+    container_name: academix-cadvisor
+    restart: unless-stopped
+    networks: [academix]
+    privileged: true
+    devices: ["/dev/kmsg"]
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /var/lib/containerd/:/var/lib/containerd:ro
+      - /dev/disk/:/dev/disk:ro
+    ports: ["8081:8080"]
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: academix-node-exporter
+    restart: unless-stopped
+    networks: [academix]
+    command:
+      - --path.rootfs=/host
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+    volumes:
+      - /:/host:ro,rslave
+    ports: ["9100:9100"]
+
+  grafana:
+    <<: *comun
+    image: grafana/grafana:latest
+    container_name: academix-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-practicasa}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-Admin123}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_AUTH_BASIC_ENABLED: "true"
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3001}
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/infraestructura.json
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    ports: ["3001:3000"]
+    depends_on:
+      prometheus: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+networks:
+  academix:
+
+volumes:
+  pgdata:
+  promdata:
+  grafanadata:

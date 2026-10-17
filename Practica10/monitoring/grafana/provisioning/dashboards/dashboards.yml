@@ -1,0 +1,17 @@
+# HeinzGomez - Practica 10: aprovisionamiento de los tableros de Grafana
+# Todo JSON que se coloque en monitoring/grafana/dashboards/ se carga automaticamente.
+apiVersion: 1
+
+providers:
+  - name: academix
+    orgId: 1
+    folder: Academix
+    folderUid: academix
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

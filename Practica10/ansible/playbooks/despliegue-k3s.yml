@@ -1,0 +1,207 @@
+---
+# Paso final de site.yml; también ejecutable por separado:
+#   ansible-playbook -i inventory.ini playbooks/despliegue-k3s.yml
+#
+# Aplica Practica10/k3s/ contra el clúster de vm-production-k3s con kubectl,
+# en el MISMO orden que el job deploy-k3s del pipeline CI:
+#   namespace → secrets → configmaps → deployments → services → ingress → monitoreo
+#
+# Va AL FINAL de site.yml porque necesita:
+#   - el controlador ingress-nginx y el ClusterIssuer de Let's Encrypt
+#     (paso 04 · playbooks/ingress.yml) para los Ingress y sus certificados TLS;
+#   - PostgreSQL externo (paso 06 · playbooks/db.yml) y RabbitMQ/Redis del propio
+#     clúster, porque los readiness probes de los microservicios verifican
+#     Postgres y el broker: sin ellos los rollouts nunca quedan Ready.
+#
+# A diferencia del CI, AQUÍ sí se aplican los secrets: viajan desde
+# Practica10/k3s/secrets/ del equipo de administración (fichero gitignored
+# con los valores reales de group_vars/all/99-secretos.yml).
+- name: Despliegue K3s · manifests de la aplicación (kubectl apply)
+  hosts: k3s
+  become: true
+
+  vars:
+    k3s_kubeconfig: /etc/rancher/k3s/k3s.yaml
+    # Destino: carpeta de manifests dentro de vm-production-k3s.
+    # (El ORIGEN se referencia como ../../k3s/ directamente en copy: las rutas
+    #  locales del módulo copy se resuelven contra la carpeta del propio
+    #  playbook —playbooks/— igual que en entorno.yml; en cambio playbook_dir
+    #  no sirve aquí porque varía según se ejecute por site.yml o suelto.)
+    k3s_manifestos_dir: "/opt/academix/k3s"
+    k3s_namespace: academix
+    # image_tag viene de group_vars/all/00-general.yml (latest); el CI usa
+    # tags sha-<7>, pero Ansible siempre despliega la última imagen publicada.
+
+  tasks:
+    - name: Verificar que K3s ya está instalado
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s
+      register: k3s_binario
+
+    - name: Abortar si falta K3s
+      ansible.builtin.assert:
+        that: k3s_binario.stat.exists
+        fail_msg: "Ejecuta primero playbooks/k3s.yml (o site.yml completo)."
+
+    - name: Crear la carpeta de manifests en la VM
+      ansible.builtin.file:
+        path: "{{ k3s_manifestos_dir }}"
+        state: directory
+        mode: "0755"
+
+    # k3s/.kube/ NO es un manifest (es el kubeconfig extraído hacia el equipo
+    # de administración), por eso se copian los directorios uno a uno y no
+    # todo el árbol k3s/.
+    # ../../k3s/ es relativo a ESTE playbook (playbooks/ → Practica10/k3s/),
+    # la misma técnica que usa entorno.yml con ../../docker-compose.cloud.yml.
+    - name: Copiar los manifests al clúster
+      ansible.builtin.copy:
+        src: "../../k3s/{{ item }}/"
+        dest: "{{ k3s_manifestos_dir }}/{{ item }}/"
+      loop:
+        - namespaces
+        - secrets
+        - configmaps
+        - deployments
+        - services
+        - ingress
+        - monitoring
+
+    - name: Restringir los secrets a root (contienen credenciales reales)
+      ansible.builtin.file:
+        path: "{{ k3s_manifestos_dir }}/secrets"
+        state: directory
+        mode: "0700"
+        recurse: true
+
+    # Los deployments usan ghcr.io/...:${IMAGE_TAG}. Primero se listan los
+    # ficheros YA copiados en la VM (find es un módulo remoto: así no hay que
+    # resolver rutas locales en el controlador) y sustituye con replace el tag
+    # de group_vars (image_tag). Cada run recopia el original con ${IMAGE_TAG}
+    # y aquí se vuelve a reemplazar.
+    - name: Localizar los deployments copiados en la VM
+      ansible.builtin.find:
+        paths: "{{ k3s_manifestos_dir }}/deployments"
+        patterns: "*.yaml"
+        file_type: file
+      register: deployments_copiados
+
+    - name: Sustituir ${IMAGE_TAG} en los deployments (group_vars · image_tag)
+      ansible.builtin.replace:
+        path: "{{ item.path }}"
+        regexp: '\$\{IMAGE_TAG\}'
+        replace: "{{ image_tag }}"
+      loop: "{{ deployments_copiados.files }}"
+      loop_control:
+        label: "{{ item.path | basename }}"
+
+    # ------------------------------------------------------------------
+    # kubectl apply · mismo orden que el CI.
+    # KUBECONFIG=/etc/rancher/k3s/k3s.yaml hace que kubectl corra en el
+    # propio nodo autenticándose con el certificado de administración del
+    # clúster local (igual que en playbooks/ingress.yml).
+    # ------------------------------------------------------------------
+    - name: Aplicar el namespace
+      ansible.builtin.command: kubectl apply -f {{ k3s_manifestos_dir }}/namespaces/
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      register: aplicado
+      changed_when: "'created' in aplicado.stdout or 'configured' in aplicado.stdout"
+
+    - name: Aplicar los secrets (credenciales reales)
+      ansible.builtin.command: kubectl apply -f {{ k3s_manifestos_dir }}/secrets/
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      register: aplicado
+      changed_when: "'created' in aplicado.stdout or 'configured' in aplicado.stdout"
+
+    - name: Aplicar los configmaps
+      ansible.builtin.command: kubectl apply -f {{ k3s_manifestos_dir }}/configmaps/
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      register: aplicado
+      changed_when: "'created' in aplicado.stdout or 'configured' in aplicado.stdout"
+
+    - name: Aplicar los deployments (con IMAGE_TAG ya sustituido)
+      ansible.builtin.command: kubectl apply -f {{ k3s_manifestos_dir }}/deployments/
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      register: aplicado
+      changed_when: "'created' in aplicado.stdout or 'configured' in aplicado.stdout"
+
+    - name: Aplicar los services
+      ansible.builtin.command: kubectl apply -f {{ k3s_manifestos_dir }}/services/
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      register: aplicado
+      changed_when: "'created' in aplicado.stdout or 'configured' in aplicado.stdout"
+
+    - name: Aplicar los ingress (api-gateway y grafana)
+      ansible.builtin.command: kubectl apply -f {{ k3s_manifestos_dir }}/ingress/
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      register: aplicado
+      changed_when: "'created' in aplicado.stdout or 'configured' in aplicado.stdout"
+
+    - name: Aplicar el monitoreo (Prometheus, exporters y Grafana)
+      ansible.builtin.command: >-
+        kubectl apply
+        -f {{ k3s_manifestos_dir }}/monitoring/prometheus
+        -f {{ k3s_manifestos_dir }}/monitoring/prometheus/exporters
+        -f {{ k3s_manifestos_dir }}/monitoring/grafana
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      register: aplicado
+      changed_when: "'created' in aplicado.stdout or 'configured' in aplicado.stdout"
+
+    # ------------------------------------------------------------------
+    # Esperas de rollout · kubectl rollout status --timeout hace él mismo
+    # el reintento (polling interno), así que no hace falta until/retries
+    # de Ansible; si un rollout no completa, la tarea falla con el nombre
+    # del deployment que falló (mismo criterio estricto que el CI).
+    # 300s de margen: el primer despliegue descarga las imágenes de ghcr.io.
+    # ------------------------------------------------------------------
+    - name: Esperar el rollout de los datos (rabbitmq, redis)
+      ansible.builtin.command: >-
+        kubectl rollout status deployment/{{ item }}
+        -n {{ k3s_namespace }} --timeout=300s
+      loop:
+        - rabbitmq
+        - redis
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      changed_when: false
+
+    - name: Esperar el rollout de los microservicios y el gateway
+      ansible.builtin.command: >-
+        kubectl rollout status deployment/{{ item }}
+        -n {{ k3s_namespace }} --timeout=300s
+      loop:
+        - auth-service
+        - talleres-service
+        - reservas-service
+        - certificados-service
+        - api-gateway
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      changed_when: false
+
+    - name: Esperar el rollout del monitoreo (prometheus, grafana)
+      ansible.builtin.command: >-
+        kubectl rollout status deployment/{{ item }}
+        -n {{ k3s_namespace }} --timeout=300s
+      loop:
+        - prometheus
+        - grafana
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      changed_when: false
+
+    - name: Estado final de los pods de la aplicación
+      ansible.builtin.command: kubectl get pods -n {{ k3s_namespace }} --no-headers
+      environment:
+        KUBECONFIG: "{{ k3s_kubeconfig }}"
+      register: pods_finales
+      changed_when: false
+      failed_when: false
+      run_once: true

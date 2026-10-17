@@ -1,0 +1,42 @@
+# HeinzGomez - Práctica 10: alertas de Prometheus en K3s (ConfigMap).
+# Migradas tal cual desde monitoring/prometheus/rules/alertas.yml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-reglas
+  namespace: academix
+  labels:
+    app.kubernetes.io/part-of: academix
+    app: prometheus
+data:
+  alertas.yml: |
+    groups:
+      - name: academix
+        rules:
+          - alert: TargetDown
+            expr: up == 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "El target {{ $labels.job }} {{ $labels.instance }} dejo de responder"
+
+          - alert: ColaSaturada
+            expr: max(rabbitmq_queue_messages) > 500
+            for: 2m
+            labels:
+              severity: warning
+            annotations:
+              summary: "La cola {{ $labels.queue }} supera los 500 mensajes pendientes"
+
+          - alert: MemoriaContenedorAlta
+            expr: |
+              (sum by (name) (container_memory_working_set_bytes{name!=""})
+                > 0.9 * sum by (name) (container_spec_memory_limit_bytes{name!=""}))
+              and on (name)
+              sum by (name) (container_spec_memory_limit_bytes{name!=""}) > 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "El contenedor {{ $labels.name }} supera el 90% de su limite de memoria"

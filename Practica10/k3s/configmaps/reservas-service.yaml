@@ -1,0 +1,15 @@
+# HeinzGomez - Práctica 10: configuración no sensible del reservas-service.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: reservas-service-config
+  namespace: academix
+  labels:
+    app.kubernetes.io/part-of: academix
+    app: reservas-service
+data:
+  PUERTO: "8093"
+  # Workers de la cola absorbiendo la ráfaga. En la VM de 8 GB se sube a 6 respecto al compose (4).
+  WORKERS: "6"
+  LOG_LEVEL: "info"
+  SERVICE_VERSION: "1.0.0"

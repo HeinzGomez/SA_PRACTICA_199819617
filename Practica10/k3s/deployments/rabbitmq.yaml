@@ -1,0 +1,99 @@
+# HeinzGomez - Práctica 10: RabbitMQ en el cluster (broker de colas).
+# Con PVC para conservar colas y mensajes entre reinicios del pod.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rabbitmq-datos
+  namespace: academix
+  labels:
+    app: rabbitmq
+    app.kubernetes.io/part-of: academix
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+  namespace: academix
+  labels:
+    app: rabbitmq
+    app.kubernetes.io/part-of: academix
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+  strategy:
+    type: Recreate          # PVC RWO: no puede haber dos pods con el mismo volumen
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+        app.kubernetes.io/part-of: academix
+    spec:
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:3.13-management-alpine
+          ports:
+            - containerPort: 5672
+              name: amqp
+            - containerPort: 15672
+              name: management
+            - containerPort: 15692
+              name: metrics      # plugin rabbitmq_prometheus
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: secretos-servicios
+                  key: RABBITMQ_DEFAULT_USER
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: secretos-servicios
+                  key: RABBITMQ_DEFAULT_PASS
+          volumeMounts:
+            - name: datos
+              mountPath: /var/lib/rabbitmq
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "384Mi"
+            limits:
+              cpu: "1"
+              memory: "768Mi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999           # usuario rabbitmq de la imagen: sin DAC_OVERRIDE, solo el dueño del cookie (400) puede leerlo
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          startupProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+            periodSeconds: 10
+            # El default del probe es 1s y check_port_connectivity tarda varios
+            # segundos SIEMPRE: sin este timeout el startup probe nunca pasaba,
+            # el pod se reiniciaba cada 5 min y nunca quedaba Ready.
+            timeoutSeconds: 10
+            failureThreshold: 30        # hasta 5 min (primera vez crea el nodo Erlang)
+          readinessProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "-q", "check_running"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: amqp
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: datos
+          persistentVolumeClaim:
+            claimName: rabbitmq-datos

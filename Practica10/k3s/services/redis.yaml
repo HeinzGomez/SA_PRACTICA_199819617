@@ -1,0 +1,18 @@
+# HeinzGomez - Práctica 10: servicio interno de Redis.
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: academix
+  labels:
+    app: redis
+    app.kubernetes.io/part-of: academix
+spec:
+  type: ClusterIP
+  selector:
+    app: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+      protocol: TCP

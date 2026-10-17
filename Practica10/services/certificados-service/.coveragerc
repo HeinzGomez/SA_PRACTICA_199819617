@@ -1,0 +1,19 @@
+# HeinzGomez - Práctica 9: cobertura del Servicio de Certificados.
+#
+# Se mide por ramas (branch) sobre app/ y se exige un mínimo global para que una
+# refactorización que borre pruebas rompa el pipeline en vez de pasar desapercibida.
+[run]
+branch = True
+source = app
+
+[report]
+fail_under = 70
+show_missing = True
+precision = 1
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
+    # firmas de los Protocol (repositorios y despachador): son anotaciones de tipo,
+    # nunca se ejecutan y sus ramas ->exit no significan nada
+    ^\s*\.\.\.$
+    :\s*\.\.\.\s*$

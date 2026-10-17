@@ -1,0 +1,97 @@
+# HeinzGomez - Práctica 10: Prometheus en el cluster (retención 15 días, como el compose).
+# Config y reglas montados desde ConfigMaps; datos en PVC (local-path de K3s).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-datos
+  namespace: academix
+  labels:
+    app: prometheus
+    app.kubernetes.io/part-of: academix
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: academix
+  labels:
+    app: prometheus
+    app.kubernetes.io/part-of: academix
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  strategy:
+    type: Recreate          # PVC RWO
+  template:
+    metadata:
+      labels:
+        app: prometheus
+        app.kubernetes.io/part-of: academix
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534        # "nobody" (usuario de la imagen prom/prometheus)
+        fsGroup: 65534
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.53.0   # misma versión mayor probada con promtool en compose
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --storage.tsdb.retention.time=15d
+            - --web.enable-lifecycle
+          ports:
+            - containerPort: 9090
+              name: http
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus/prometheus.yml
+              subPath: prometheus.yml
+              readOnly: true
+            - name: reglas
+              mountPath: /etc/prometheus/rules
+              readOnly: true
+            - name: datos
+              mountPath: /prometheus
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+        - name: reglas
+          configMap:
+            name: prometheus-reglas
+        - name: datos
+          persistentVolumeClaim:
+            claimName: prometheus-datos

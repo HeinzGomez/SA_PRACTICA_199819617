@@ -1,0 +1,54 @@
+# HeinzGomez - Práctica 10: node-exporter como DaemonSet en K3s (métricas del host).
+# hostNetwork=true para leer la red real del nodo; la cola de endpoints del
+# Service apunta a las IPs de los nodos y el scrape interno funciona igual.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-exporter
+  namespace: academix
+  labels:
+    app: node-exporter
+    app.kubernetes.io/part-of: academix
+spec:
+  selector:
+    matchLabels:
+      app: node-exporter
+  template:
+    metadata:
+      labels:
+        app: node-exporter
+        app.kubernetes.io/part-of: academix
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: node-exporter
+          image: prom/node-exporter:v1.8.2
+          args:
+            - --path.rootfs=/host
+            - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+          ports:
+            - containerPort: 9100
+              name: metrics
+          volumeMounts:
+            - name: rootfs
+              mountPath: /host
+              readOnly: true
+              mountPropagation: HostToContainer
+          resources:
+            requests:
+              cpu: "25m"
+              memory: "48Mi"
+            limits:
+              cpu: "100m"
+              memory: "96Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      tolerations:
+        - operator: Exists
+      volumes:
+        - name: rootfs
+          hostPath:
+            path: /

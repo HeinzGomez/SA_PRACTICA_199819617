@@ -1,0 +1,18 @@
+# HeinzGomez - Práctica 10: servicio interno de cadvisor (scrape target de Prometheus).
+apiVersion: v1
+kind: Service
+metadata:
+  name: cadvisor
+  namespace: academix
+  labels:
+    app: cadvisor
+    app.kubernetes.io/part-of: academix
+spec:
+  type: ClusterIP
+  selector:
+    app: cadvisor
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
