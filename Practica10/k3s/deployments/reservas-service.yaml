@@ -58,6 +58,7 @@ spec:
               memory: "256Mi"
           securityContext:
             runAsNonRoot: true
+            runAsUser: 65532         # uid numérico del usuario "nonroot" de la imagen distroless
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]

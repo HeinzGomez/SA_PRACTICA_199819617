@@ -64,6 +64,7 @@ spec:
               memory: "384Mi"
           securityContext:
             runAsNonRoot: true
+            runAsUser: 1000          # uid numérico del usuario "node" de la imagen (runAsNonRoot lo exige numérico)
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]

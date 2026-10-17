@@ -67,10 +67,11 @@ spec:
               cpu: "1"
               memory: "768Mi"
           securityContext:
+            runAsNonRoot: true
+            runAsUser: 999           # usuario rabbitmq de la imagen: sin DAC_OVERRIDE, solo el dueño del cookie (400) puede leerlo
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
-              add: ["CHOWN", "SETUID", "SETGID"]   # el entrypoint de RabbitMQ necesita cambiar de usuario
           startupProbe:
             exec:
               command: ["rabbitmq-diagnostics", "-q", "check_port_connectivity"]

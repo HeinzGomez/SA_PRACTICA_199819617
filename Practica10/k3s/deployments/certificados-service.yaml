@@ -57,6 +57,7 @@ spec:
               memory: "256Mi"
           securityContext:
             runAsNonRoot: true
+            runAsUser: 10001         # uid numérico del usuario "app" creado en el Dockerfile (useradd -u 10001)
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
