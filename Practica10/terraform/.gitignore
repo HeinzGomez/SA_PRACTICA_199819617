@@ -10,10 +10,13 @@
 tfplan*
 *.tfplan
 
-# Variables con valores reales. Solo se versiona terraform.tfvars.example.
+# Variables con valores reales. Solo se versionan terraform.tfvars.example y
+# terraform.tfvars (no contiene secretos: solo proyecto, region, hostnames y CIDRs;
+# el CI lo necesita para aplicar la infra).
 *.tfvars
 *.auto.tfvars
 !*.tfvars.example
+!terraform.tfvars
 
 # Volcados de pánico y overrides locales.
 crash.log

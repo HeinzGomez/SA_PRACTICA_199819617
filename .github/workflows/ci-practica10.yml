@@ -5,15 +5,21 @@
 #     6 imágenes Docker y las publica en GitHub Container Registry (ghcr.io).
 #     - Pull Request  -> se construyen para validar los Dockerfile, NO se publican.
 #     - push a develop/main o tag v*.*.* -> se publican con tags de rama, sha, semver y latest.
-#  3. deploy-vm (SOLO develop): la VM de desarrollo hace pull de las imágenes recién publicadas
+#  3. provisioning (main / release / tag): Terraform aplica la infra de GCP (estado
+#     compartido en GCS) y Ansible ejecuta site.yml completo contra las VMs: base,
+#     K3s, ingress, BD y manifests de la aplicación (tag latest + secrets renderizados
+#     desde los secrets de GitHub). Al terminar, el kubeconfig se extrae del propio
+#     nodo por SSH y viaja como artifact hacia deploy-k3s (NO se guarda como secret
+#     del repo: se regenera en cada run, así sobrevive cambios de IP del clúster).
+#  4. deploy-vm (SOLO develop): la VM de desarrollo hace pull de las imágenes recién publicadas
 #     y reinicia el stack con docker compose.
-#  4. deploy-k3s (main / release / tag): el clúster K3s de producción (creado con Ansible en
-#     vm-production-k3s) recibe los manifests actualizados y hace rollout de los deployments.
+#  5. deploy-k3s (main / release / tag): el clúster K3s recibe los manifests con el
+#     tag exacto sha-<7> que publicó build-and-push y hace rollout de los deployments.
 #
-#  El clúster K3s NO se crea desde CI: lo instala ansible/playbooks/k3s.yml y extrae el
-#  kubeconfig (autenticación por certificado) hacia el equipo de administración. El pipeline
-#  solo necesita ese kubeconfig guardado como secret K3S_KUBECONFIG (base64) para poder
-#  ejecutar kubectl contra https://<IP-publica>:6443.
+#  Secrets de GitHub Actions que usa el pipeline:
+#    GCP_SA_KEY        · service account JSON para Terraform (Compute/DNS/Storage)
+#    SSH_PRIVATE_KEY   · clave privada ~/.ssh/academix_lab (la misma de las VMs)
+#    SECRETOS_YML      · group_vars/all/99-secretos.yml (credenciales de la app)
 #
 #  Ubicación: raíz del repositorio SA_PRACTICA_199819617. El código vive en Practica10/, por eso
 #  todas las rutas llevan ese prefijo y el workflow solo se dispara con cambios en esa carpeta.
@@ -228,6 +234,96 @@ jobs:
           echo "### ${{ matrix.imagen.nombre }}" >> "$GITHUB_STEP_SUMMARY"
           echo '${{ steps.meta.outputs.tags }}' | sed 's/^/- `/; s/$/`/' >> "$GITHUB_STEP_SUMMARY"
 
+  # ------------------------------------------------------------------ Provisioning (Terraform + Ansible) · main, release y tags
+  provisioning:
+    name: Provisionar infra (Terraform + Ansible)
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release' || startsWith(github.ref, 'refs/tags/')))
+    steps:
+      - uses: actions/checkout@v4
+
+      # La MISMA clave que usan las VMs y ansible.cfg (private_key_file =
+      # ~/.ssh/academix_lab). La pública ya está en la metadata del proyecto
+      # (la gestionó Terraform con ssh_public_key_path), así que aquí solo se
+      # escribe la privada y se deriva el .pub que necesita terraform.tfvars.
+      - name: Clave SSH de Ansible (academix_lab)
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/academix_lab"
+          chmod 600 "$HOME/.ssh/academix_lab"
+          ssh-keygen -y -f "$HOME/.ssh/academix_lab" > "$HOME/.ssh/academix_lab.pub"
+
+      # group_vars/all/99-secretos.yml está gitignored: el runner lo materializa
+      # desde el secret multi-línea (mismo contenido que en la máquina de
+      # administración) para que Ansible renderice los secrets de la app.
+      - name: Secretos de la aplicación (group_vars)
+        env:
+          SECRETOS_YML: ${{ secrets.SECRETOS_YML }}
+        run: |
+          mkdir -p Practica10/ansible/group_vars/all
+          printf '%s\n' "$SECRETOS_YML" > Practica10/ansible/group_vars/all/99-secretos.yml
+
+      - id: auth-gcp
+        name: Autenticación GCP (service account del CI/CD)
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.9.8'
+          terraform_wrapper: false
+
+      - name: Terraform init + apply (infra idempotente, estado en GCS)
+        working-directory: Practica10/terraform
+        run: |
+          terraform init -input=false
+          terraform apply -input=false -auto-approve
+
+      - name: Regenerar inventory.ini desde las IPs aplicadas
+        working-directory: Practica10/terraform
+        run: terraform output -raw inventory_ini > ../ansible/inventory.ini
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar Ansible
+        run: python3 -m pip install 'ansible-core>=2.16'
+
+      - name: Ansible site.yml (base, K3s, ingress, BD, app + secrets)
+        working-directory: Practica10/ansible
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          ansible-playbook -i inventory.ini site.yml
+
+      # El kubeconfig del clúster se extrae del nodo en CADA run: si la IP
+      # pública cambia (stop/start de la VM), el pipeline se autorepara. Esto
+      # sustituye al antiguo secret K3S_KUBECONFIG, que se desincronizaba.
+      - name: Extraer kubeconfig del nodo K3s
+        run: |
+          IP=$(terraform -chdir=Practica10/terraform output -raw ip_vm_production_k3s)
+          echo "IP del clúster: $IP"
+          scp -o StrictHostKeyChecking=no -i "$HOME/.ssh/academix_lab" \
+            "ubuntu@${IP}:/etc/rancher/k3s/k3s.yaml" /tmp/k3s.yaml
+          sed "s|127.0.0.1|${IP}|g" /tmp/k3s.yaml > /tmp/kubeconfig
+          chmod 600 /tmp/kubeconfig
+          echo "KUBECONFIG=/tmp/kubeconfig" >> "$GITHUB_ENV"
+
+      - name: Verificar acceso a la API del clúster
+        run: |
+          kubectl cluster-info
+          kubectl get nodes -o wide
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kubeconfig-k3s
+          path: /tmp/kubeconfig
+          retention-days: 1
+
   # ------------------------------------------------------------------ Despliegue Continuo (CD) a la VM de DESARROLLO · SOLO develop
   deploy-vm:
     name: Deploy CD a la VM de desarrollo (docker compose)
@@ -283,7 +379,7 @@ jobs:
   deploy-k3s:
     name: Deploy CD a Kubernetes (K3s)
     runs-on: ubuntu-latest
-    needs: [build-and-push]
+    needs: [build-and-push, provisioning]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release' || startsWith(github.ref, 'refs/tags/'))
     permissions:
       contents: read
@@ -291,16 +387,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # El clúster K3s lo instaló Ansible (playbooks/k3s.yml) y extrajo el kubeconfig
-      # hacia el equipo de administración. Ese kubeconfig (base64) está guardado como
-      # secret K3S_KUBECONFIG; apunta a https://<IP-publica>:6443 y autentica por
-      # certificado de cliente. El firewall ya permite el 6443, así que el runner
-      # conecta directo con la API del clúster sin túnel ni SSH.
-      - name: Configurar acceso al clúster (kubeconfig desde secret)
+      # El kubeconfig lo extrajo el job provisioning del propio nodo K3s
+      # (artifact kubeconfig-k3s): apunta a la IP pública vigente y autentica
+      # con el certificado de administrador del clúster. El firewall ya permite
+      # el 6443, así que el runner conecta directo con la API sin túnel ni SSH.
+      - uses: actions/download-artifact@v4
+        with:
+          name: kubeconfig-k3s
+          path: /tmp/kubeconfig-artifact
+
+      - name: Configurar acceso al clúster (kubeconfig del provisioning)
         run: |
           mkdir -p "$HOME/.kube"
-          echo "${{ secrets.K3S_KUBECONFIG }}" | base64 -d > "$HOME/.kube/config"
-          chmod 600 "$HOME/.kube/config"
+          install -m600 /tmp/kubeconfig-artifact/kubeconfig "$HOME/.kube/config"
           echo "KUBECONFIG=$HOME/.kube/config" >> "$GITHUB_ENV"
 
       - name: Verificar conexión al clúster

@@ -232,4 +232,4 @@ Suites de pruebas en 6 proyectos (Go, Jest ×4, pytest). Detalle en [docs/entreg
 ## Notas
 
 - **Go (`reservas-service`)**: antes del primer commit ejecutar `go mod tidy` dentro de `services/reservas-service` para generar `go.sum` y versionarlo. El Dockerfile y el pipeline lo resuelven si falta, pero es buena práctica commitearlo.
-- Secretos (`JWT_SECRET`, `CERT_SIGNING_SEED`, contraseñas) se pasan por variables de entorno; los valores de `docker-compose.yml` son solo para desarrollo.
+- Secretos (`JWT_SECRET`, `CERT_SIGNING_SEED`, contraseñas) se pasan por variables de entorno; los valores de `docker-compose.yml` son solo para desarrollo..

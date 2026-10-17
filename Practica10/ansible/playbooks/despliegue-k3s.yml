@@ -13,9 +13,10 @@
 #     clúster, porque los readiness probes de los microservicios verifican
 #     Postgres y el broker: sin ellos los rollouts nunca quedan Ready.
 #
-# A diferencia del CI, AQUÍ sí se aplican los secrets: viajan desde
-# Practica10/k3s/secrets/ del equipo de administración (fichero gitignored
-# con los valores reales de group_vars/all/99-secretos.yml).
+# A diferencia del CI (que usa imágenes sha-<7> publicadas por el pipeline), AQUÍ
+# se despliega tag `latest` y los secrets de la aplicación se RENDERIZAN desde
+# group_vars/all/99-secretos.yml con las plantillas k3s/secrets/*.yaml.j2
+# (los valores reales nunca viajan en el repo).
 - name: Despliegue K3s · manifests de la aplicación (kubectl apply)
   hosts: k3s
   become: true
@@ -51,7 +52,8 @@
 
     # k3s/.kube/ NO es un manifest (es el kubeconfig extraído hacia el equipo
     # de administración), por eso se copian los directorios uno a uno y no
-    # todo el árbol k3s/.
+    # todo el árbol k3s/. Los secrets NO se copian: se renderizan abajo
+    # desde group_vars con template.
     # ../../k3s/ es relativo a ESTE playbook (playbooks/ → Practica10/k3s/),
     # la misma técnica que usa entorno.yml con ../../docker-compose.cloud.yml.
     - name: Copiar los manifests al clúster
@@ -60,19 +62,29 @@
         dest: "{{ k3s_manifestos_dir }}/{{ item }}/"
       loop:
         - namespaces
-        - secrets
         - configmaps
         - deployments
         - services
         - ingress
         - monitoring
 
-    - name: Restringir los secrets a root (contienen credenciales reales)
+    - name: Crear la carpeta de secrets en la VM (credenciales reales, solo root)
       ansible.builtin.file:
         path: "{{ k3s_manifestos_dir }}/secrets"
         state: directory
         mode: "0700"
-        recurse: true
+
+    # Las plantillas k3s/secrets/*.yaml.j2 usan las mismas variables que el
+    # resto de playbooks (99-secretos.yml): en local y en el CI el resultado
+    # es idéntico sin duplicar valores en el repo.
+    - name: Renderizar los secrets de la aplicación (valores de group_vars)
+      ansible.builtin.template:
+        src: "../../k3s/secrets/{{ item }}.yaml.j2"
+        dest: "{{ k3s_manifestos_dir }}/secrets/{{ item }}.yaml"
+        mode: "0600"
+      loop:
+        - datos-conexiones
+        - secretos-servicios
 
     # Los deployments usan ghcr.io/...:${IMAGE_TAG}. Primero se listan los
     # ficheros YA copiados en la VM (find es un módulo remoto: así no hay que
