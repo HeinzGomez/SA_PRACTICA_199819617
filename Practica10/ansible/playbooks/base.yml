@@ -4,6 +4,17 @@
   become: true
 
   tasks:
+    # Si la VM la acaba de crear Terraform EN ESTE MISMO RUN (recreación desde
+    # cero), cloud-init todavía puede estar levantando sshd. Sin esta espera,
+    # el primer task marca unreachable y el host se elimina de TODOS los plays
+    # posteriores (así se perdió vm-database en el primer run del CI: db.yml
+    # nunca corrió y PostgreSQL quedó sin instalar).
+    - name: Esperar a que la VM acepte SSH (puede recién haberse creado)
+      ansible.builtin.wait_for_connection:
+        delay: 2
+        sleep: 5
+        timeout: 600
+
     - name: Actualizar índices de repositorios
       ansible.builtin.apt:
         update_cache: true

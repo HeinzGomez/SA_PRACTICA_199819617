@@ -21,3 +21,4 @@ GUIA-PUBLICACION.md
 
 # Carpeta temporal de pruebas de K3s (NO se sube; entorno descartable)
 pruebask3s/
+kubeconfigb64
