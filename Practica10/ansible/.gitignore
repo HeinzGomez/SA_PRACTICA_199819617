@@ -1,0 +1,38 @@
+# Ansible · artefactos locales que no se versionan.
+
+# Secretos reales de Ansible.
+#   group_vars/all/00-general.yml          -> se versiona (sin secretos)
+#   group_vars/all/99-secretos.yml         -> NO se versiona (aquí se ignora)
+#   group_vars/all/99-secretos.yml.example -> se versiona (placeholders)
+group_vars/all/99-secretos.yml
+
+# Passfile de Ansible Vault (la contraseña, NUNCA el fichero cifrado).
+#   ansible-vault encrypt group_vars/vault.yml   <- esto sí se sube
+#   ansible-playbook --ask-vault-pass site.yml   <- esto lo pides tú a mano
+.vault-pass*
+vault-password*
+
+# Kubeconfig extraído de K3s (lleva el certificado de admin del clúster).
+# playbooks/k3s.yml lo escribe aquí: {{ playbook_dir | dirname }}/.kube/
+.kube/
+
+# Archivos de reintento que genera Ansible al fallar un playbook.
+*.retry
+
+# ---------------------------------------------------------------------------
+# NOTA sobre inventory.ini
+#   SÍ se versiona: son las 3 IPs públicas, que además ya están publicadas en
+#   DNS (academixdev/academixk3s.yo-usac.com). Es regenerable con:
+#     cd ../terraform && terraform output -raw inventory_ini > ../ansible/inventory.ini
+#
+# NOTA sobre group_vars/all.yml
+#   SÍ se versiona y de momento contiene valores reales en claro
+#   (jwt_secret, admin_password, postgres_password, cert_signing_seed).
+#   Para sacarlos de ahí:
+#     mv group_vars/all.yml group_vars/vars.yml        # sin secretos
+#     ...crear group_vars/vault.yml con los secretos...
+#     ansible-vault encrypt group_vars/vault.yml
+#   y borrar de group_vars/vars.yml las claves que pasaron a vault.yml.
+#   IMPORTANTE: hasta que hagas eso y pases por git rm --cached, los secretos
+#   siguen en el historial de git aunque añadas reglas aquí.
+# ---------------------------------------------------------------------------

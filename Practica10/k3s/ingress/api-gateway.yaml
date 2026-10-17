@@ -1,0 +1,39 @@
+# HeinzGomez - Práctica 10: Ingress del api-gateway (único servicio expuesto al exterior).
+#
+# Basado en ansible/playbooks/ingress.yml:
+#   - Controlador ingress-nginx instalado con Helm, service.type=ClusterIP y
+#     controller.hostNetwork=true (nginx escucha en 80/443 del NODO, por eso el
+#     Ingress no necesita un LoadBalancer: el firewall de GCP ya abre esos puertos).
+#   - cert-manager instalado con el ClusterIssuer "letsencrypt-prod"
+#     (ansible/templates/cluster-issuer.j2, http01 vía ingressClassName nginx).
+#
+# El frontend en Vercel consume este dominio como API_URL.
+# El record A academixk3s.yo-usac.com → IP estática de vm-k3s lo crea Terraform (dns.tf).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-gateway
+  namespace: academix
+  labels:
+    app: api-gateway
+    app.kubernetes.io/part-of: academix
+  annotations:
+    # cert-manager emite el certificado TLS de Let's Encrypt para este host (HTTP-01).
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - academixk3s.yo-usac.com
+      secretName: api-gateway-tls   # lo crea cert-manager con el cert de Let's Encrypt
+  rules:
+    - host: academixk3s.yo-usac.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 80

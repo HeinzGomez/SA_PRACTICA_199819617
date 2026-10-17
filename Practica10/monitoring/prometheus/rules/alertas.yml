@@ -1,0 +1,31 @@
+# HeinzGomez - Practica 10: alertas basicas del stack (se evaluan en Prometheus)
+groups:
+  - name: academix
+    rules:
+      - alert: TargetDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "El target {{ $labels.job }} {{ $labels.instance }} dejo de responder"
+
+      - alert: ColaSaturada
+        expr: max(rabbitmq_queue_messages) > 500
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "La cola {{ $labels.queue }} supera los 500 mensajes pendientes"
+
+      - alert: MemoriaContenedorAlta
+        expr: |
+          (sum by (name) (container_memory_working_set_bytes{name!=""})
+            > 0.9 * sum by (name) (container_spec_memory_limit_bytes{name!=""}))
+          and on (name)
+          sum by (name) (container_spec_memory_limit_bytes{name!=""}) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "El contenedor {{ $labels.name }} supera el 90% de su limite de memoria"

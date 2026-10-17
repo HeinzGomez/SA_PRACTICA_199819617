@@ -1,0 +1,18 @@
+# HeinzGomez - Práctica 10: servicio interno del talleres-service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: talleres-service
+  namespace: academix
+  labels:
+    app: talleres-service
+    app.kubernetes.io/part-of: academix
+spec:
+  type: ClusterIP
+  selector:
+    app: talleres-service
+  ports:
+    - name: http
+      port: 8092
+      targetPort: http
+      protocol: TCP

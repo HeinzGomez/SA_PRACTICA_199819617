@@ -1,0 +1,37 @@
+# HeinzGomez - Práctica 10: Ingress de Grafana (monitoring de la demo).
+#
+# Requiere que el servicio Grafana exista en el namespace academix con el
+# nombre "grafana" y el puerto 3000 (ver k3s/deployments/grafana.yaml, si
+# se despliega en el cluster). Mismo patrón que el del api-gateway:
+# ingressClassName nginx + TLS vía cert-manager (ClusterIssuer letsencrypt-prod
+# instalado por ansible/playbooks/ingress.yml).
+#
+# Host: falta crear el record A grafana.academixk3s.yo-usac.com en Terraform (dns.tf)
+# apuntando a la IP estática de vm-k3s (ver informe: pendiente IaC).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  namespace: academix
+  labels:
+    app: grafana
+    app.kubernetes.io/part-of: academix
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - grafana.academixk3s.yo-usac.com
+      secretName: grafana-tls
+  rules:
+    - host: grafana.academixk3s.yo-usac.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000

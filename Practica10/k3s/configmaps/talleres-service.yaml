@@ -1,0 +1,13 @@
+# HeinzGomez - Práctica 10: configuración no sensible del talleres-service.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: talleres-service-config
+  namespace: academix
+  labels:
+    app.kubernetes.io/part-of: academix
+    app: talleres-service
+data:
+  PUERTO: "8092"
+  LOG_LEVEL: "info"
+  SERVICE_VERSION: "1.0.0"
