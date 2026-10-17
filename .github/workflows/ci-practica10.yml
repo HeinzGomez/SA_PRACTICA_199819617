@@ -319,14 +319,18 @@ jobs:
       # El kubeconfig del clúster se extrae del nodo en CADA run: si la IP
       # pública cambia (stop/start de la VM), el pipeline se autorepara. Esto
       # sustituye al antiguo secret K3S_KUBECONFIG, que se desincronizaba.
+      # k3s.yaml es root:root 600, así que se lee con sudo (scp como ubuntu
+      # daría Permission denied); el sed apunta el server a la IP pública.
       # Solo aplica fuera de develop: en develop no se instala/configura K3s.
       - name: Extraer kubeconfig del nodo K3s
         if: github.ref != 'refs/heads/develop'
         run: |
           IP=$(terraform -chdir=Practica10/terraform output -raw ip_vm_production_k3s)
           echo "IP del clúster: $IP"
-          scp -o StrictHostKeyChecking=no -i "$HOME/.ssh/academix_lab" \
-            "ubuntu@${IP}:/etc/rancher/k3s/k3s.yaml" /tmp/k3s.yaml
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            -i "$HOME/.ssh/academix_lab" "ubuntu@${IP}" \
+            "sudo cat /etc/rancher/k3s/k3s.yaml" > /tmp/k3s.yaml
+          grep -q 'certificate-authority-data' /tmp/k3s.yaml || { echo "kubeconfig vacío o inválido"; exit 1; }
           sed "s|127.0.0.1|${IP}|g" /tmp/k3s.yaml > /tmp/kubeconfig
           chmod 600 /tmp/kubeconfig
           echo "KUBECONFIG=/tmp/kubeconfig" >> "$GITHUB_ENV"
