@@ -1,0 +1,540 @@
+# HeinzGomez - Práctica 10: Pipeline de Integración Continua (CI/CD) de Academix Pass & CertiHub
+#
+#  1. Pruebas unitarias por lenguaje (Go / TypeScript / Python / Frontend) en paralelo.
+#  2. build-and-push: SOLO si todas las pruebas pasan (needs => cortocircuito) construye las
+#     6 imágenes Docker y las publica en GitHub Container Registry (ghcr.io).
+#     - Pull Request  -> se construyen para validar los Dockerfile, NO se publican.
+#     - push a develop/main o tag v*.*.* -> se publican con tags de rama, sha, semver y latest.
+#  3. provisioning (develop / main / release / tag / manual): Terraform aplica la infra
+#     de GCP (estado compartido en GCS) y Ansible configura las VMs. Dos modos:
+#     - develop  → solo base + docker + entorno (prepara la VM de desarrollo que
+#       deploy-vm necesita); NO se toca el clúster K3s ni la app de producción.
+#     - main / release / tag / manual → site.yml completo (K3s, ingress, BD y
+#       manifests de la aplicación con tag latest + secrets renderizados desde los
+#       secrets de GitHub). Al terminar, el kubeconfig se extrae del propio nodo por
+#       SSH y viaja como artifact hacia deploy-k3s (NO se guarda como secret del
+#       repo: se regenera en cada run, así sobrevive cambios de IP del clúster).
+#  4. deploy-vm (SOLO develop): la VM de desarrollo hace pull de las imágenes recién publicadas
+#     y reinicia el stack con docker compose (espera a provisioning: la VM la crea Terraform).
+#  5. deploy-k3s (main / release / tag): el clúster K3s recibe los manifests con el
+#     tag exacto sha-<7> que publicó build-and-push y hace rollout de los deployments.
+#
+#  Secrets de GitHub Actions que usa el pipeline:
+#    GCP_SA_KEY        · service account JSON para Terraform (Compute/DNS/Storage)
+#    SSH_PRIVATE_KEY   · clave privada ~/.ssh/academix_lab (la misma de las VMs)
+#    SECRETOS_YML      · group_vars/all/99-secretos.yml (credenciales de la app)
+#
+#  Ubicación: raíz del repositorio SA_PRACTICA_199819617. El código vive en Practica10/, por eso
+#  todas las rutas llevan ese prefijo y el workflow solo se dispara con cambios en esa carpeta.
+name: CI - Practica 10 Academix Pass
+
+on:
+  push:
+    branches: [main, develop, release]
+    tags: ['v*.*.*', 'V*.*.*']
+    paths:
+      - 'Practica10/**'
+      - '.github/workflows/ci-practica10.yml'
+  pull_request:
+    branches: [main, develop, release]
+    paths:
+      - 'Practica10/**'
+      - '.github/workflows/ci-practica10.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+  NAMESPACE: academix
+
+jobs:
+  # ------------------------------------------------------------------ Go
+  test-go:
+    name: Pruebas Go · reservas-service
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Practica10/services/reservas-service
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: false
+      - name: Resolver dependencias
+        run: |
+          if [ ! -f go.sum ]; then go mod tidy; fi
+          go mod download
+      - name: go vet
+        run: go vet ./...
+      - name: go test (con race detector y cobertura)
+        env:
+          REDIS_ADDR: localhost:6379
+        run: |
+          set -o pipefail
+          go test -race -covermode=atomic -coverprofile=coverage.out -v ./... 2>&1 | tee go-test.log
+      - name: Resumen de cobertura
+        run: go tool cover -func=coverage.out | tail -1 | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cobertura-go
+          path: |
+            Practica10/services/reservas-service/coverage.out
+            Practica10/services/reservas-service/go-test.log
+
+  # ------------------------------------------------------------------ TypeScript (servicios)
+  test-node:
+    name: Pruebas Jest · ${{ matrix.servicio }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        servicio: [auth-service, talleres-service, api-gateway]
+    defaults:
+      run:
+        working-directory: Practica10/services/${{ matrix.servicio }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: Practica10/services/${{ matrix.servicio }}/package-lock.json
+      - run: npm ci
+      - name: Compilar TypeScript
+        run: npm run build
+      - name: Jest con cobertura
+        run: npm test -- --ci
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cobertura-${{ matrix.servicio }}
+          path: Practica10/services/${{ matrix.servicio }}/coverage/
+
+  # ------------------------------------------------------------------ Python
+  test-python:
+    name: Pruebas pytest · certificados-service
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Practica10/services/certificados-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: Practica10/services/certificados-service/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - name: pytest con cobertura
+        run: pytest --cov=app --cov-report=term-missing --cov-report=xml --junitxml=pytest-report.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cobertura-python
+          path: |
+            Practica10/services/certificados-service/coverage.xml
+            Practica10/services/certificados-service/pytest-report.xml
+
+  # ------------------------------------------------------------------ Frontend (Next.js)
+  test-frontend:
+    name: Pruebas y build · frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Practica10/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: Practica10/frontend/package-lock.json
+      - run: npm ci
+      - name: Verificación de tipos
+        run: npm run lint
+      - name: Jest con cobertura
+        run: npm test -- --ci
+      - name: Build de producción (mismo que ejecuta Vercel)
+        run: npm run build
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cobertura-frontend
+          path: Practica10/frontend/coverage/
+
+  # ------------------------------------------------------------------ Imágenes -> GHCR
+  build-and-push:
+    name: Imagen · ${{ matrix.imagen.nombre }}
+    runs-on: ubuntu-latest
+    needs: [test-go, test-node, test-python, test-frontend]
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        imagen:
+          - { nombre: academix-auth-service, dockerfile: Practica10/services/auth-service/Dockerfile }
+          - { nombre: academix-talleres-service, dockerfile: Practica10/services/talleres-service/Dockerfile }
+          - { nombre: academix-reservas-service, dockerfile: Practica10/services/reservas-service/Dockerfile }
+          - { nombre: academix-certificados-service, dockerfile: Practica10/services/certificados-service/Dockerfile }
+          - { nombre: academix-api-gateway, dockerfile: Practica10/services/api-gateway/Dockerfile }
+          - { nombre: academix-frontend, dockerfile: Practica10/frontend/Dockerfile }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Nombre del owner en minúsculas (requisito de GHCR)
+        run: echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+      - uses: docker/setup-buildx-action@v3
+      - name: Login a GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Metadatos (tags y labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.imagen.nombre }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+          labels: |
+            org.opencontainers.image.title=${{ matrix.imagen.nombre }}
+            org.opencontainers.image.description=YOUSAC Academix Pass & CertiHub - ${{ matrix.imagen.nombre }}
+      - name: Build (y push fuera de PR)
+        uses: docker/build-push-action@v6
+        with:
+          context: Practica10
+          file: ${{ matrix.imagen.dockerfile }}
+          push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/release' || startsWith(github.ref, 'refs/tags/')) }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.imagen.nombre }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.imagen.nombre }}
+      - name: Resumen
+        run: |
+          echo "### ${{ matrix.imagen.nombre }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '${{ steps.meta.outputs.tags }}' | sed 's/^/- `/; s/$/`/' >> "$GITHUB_STEP_SUMMARY"
+
+  # ------------------------------------------------------------------ Provisioning (Terraform + Ansible) · main, release y tags
+  provisioning:
+    name: Provisionar infra (Terraform + Ansible)
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release' || startsWith(github.ref, 'refs/tags/')))
+    steps:
+      - uses: actions/checkout@v4
+
+      # La MISMA clave que usan las VMs y ansible.cfg (private_key_file =
+      # ~/.ssh/academix_lab). La pública ya está en la metadata del proyecto
+      # (la gestionó Terraform con ssh_public_key_path), así que aquí solo se
+      # escribe la privada y se deriva el .pub que necesita terraform.tfvars.
+      - name: Clave SSH de Ansible (academix_lab)
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/academix_lab"
+          chmod 600 "$HOME/.ssh/academix_lab"
+          ssh-keygen -y -f "$HOME/.ssh/academix_lab" > "$HOME/.ssh/academix_lab.pub"
+
+      # group_vars/all/99-secretos.yml está gitignored: el runner lo materializa
+      # desde el secret multi-línea (mismo contenido que en la máquina de
+      # administración) para que Ansible renderice los secrets de la app.
+      - name: Secretos de la aplicación (group_vars)
+        env:
+          SECRETOS_YML: ${{ secrets.SECRETOS_YML }}
+        run: |
+          mkdir -p Practica10/ansible/group_vars/all
+          printf '%s\n' "$SECRETOS_YML" > Practica10/ansible/group_vars/all/99-secretos.yml
+
+      - id: auth-gcp
+        name: Autenticación GCP (service account del CI/CD)
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.9.8'
+          terraform_wrapper: false
+
+      - name: Terraform init + apply (infra idempotente, estado en GCS)
+        working-directory: Practica10/terraform
+        run: |
+          terraform init -input=false
+          terraform apply -input=false -auto-approve
+
+      - name: Regenerar inventory.ini desde las IPs aplicadas
+        working-directory: Practica10/terraform
+        run: terraform output -raw inventory_ini > ../ansible/inventory.ini
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar Ansible
+        run: python3 -m pip install 'ansible-core>=2.16'
+
+      - name: Ansible site.yml (base, K3s, ingress, BD, app + secrets)
+        if: github.ref != 'refs/heads/develop'
+        working-directory: Practica10/ansible
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          ansible-playbook -i inventory.ini site.yml
+
+      # En develop NO se corre site.yml completo (incluiría despliegue-k3s y
+      # mandaría código de develop a producción con tag latest). Solo se
+      # prepara la VM de desarrollo que deploy-vm necesita: repos/SSH (base),
+      # Docker y la carpeta academix/ con su .env (entorno). Todo idempotente.
+      - name: Ansible en develop (solo base + docker + entorno)
+        if: github.ref == 'refs/heads/develop'
+        working-directory: Practica10/ansible
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          ansible-playbook -i inventory.ini \
+            playbooks/base.yml playbooks/docker.yml playbooks/entorno.yml
+
+      # El kubeconfig del clúster se extrae del nodo en CADA run: si la IP
+      # pública cambia (stop/start de la VM), el pipeline se autorepara. Esto
+      # sustituye al antiguo secret K3S_KUBECONFIG, que se desincronizaba.
+      # Solo aplica fuera de develop: en develop no se instala/configura K3s.
+      - name: Extraer kubeconfig del nodo K3s
+        if: github.ref != 'refs/heads/develop'
+        run: |
+          IP=$(terraform -chdir=Practica10/terraform output -raw ip_vm_production_k3s)
+          echo "IP del clúster: $IP"
+          scp -o StrictHostKeyChecking=no -i "$HOME/.ssh/academix_lab" \
+            "ubuntu@${IP}:/etc/rancher/k3s/k3s.yaml" /tmp/k3s.yaml
+          sed "s|127.0.0.1|${IP}|g" /tmp/k3s.yaml > /tmp/kubeconfig
+          chmod 600 /tmp/kubeconfig
+          echo "KUBECONFIG=/tmp/kubeconfig" >> "$GITHUB_ENV"
+
+      - name: Verificar acceso a la API del clúster
+        if: github.ref != 'refs/heads/develop'
+        run: |
+          kubectl cluster-info
+          kubectl get nodes -o wide
+
+      - uses: actions/upload-artifact@v4
+        if: github.ref != 'refs/heads/develop'
+        with:
+          name: kubeconfig-k3s
+          path: /tmp/kubeconfig
+          retention-days: 1
+
+  # ------------------------------------------------------------------ Despliegue Continuo (CD) a la VM de DESARROLLO · SOLO develop
+  deploy-vm:
+    name: Deploy CD a la VM de desarrollo (docker compose)
+    runs-on: ubuntu-latest
+    needs: [build-and-push, provisioning]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pre-limpieza de init.sql (Evita error Is a directory)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            sudo rm -rf "${{ secrets.VM_PROJECT_PATH }}/infra"
+
+      - name: Copiar docker-compose.cloud.yml e init.sql a la VM
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          source: Practica10/docker-compose.cloud.yml,Practica10/infra/postgres/init.sql
+          target: ${{ secrets.VM_PROJECT_PATH }}
+          strip_components: 1
+          overwrite: true
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            set -e
+            cd "${{ secrets.VM_PROJECT_PATH }}"
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            
+            export IMAGE_TAG=$(echo "${{ github.sha }}" | cut -c1-7)
+            export IMAGE_TAG="sha-$IMAGE_TAG"
+            
+            echo "Desplegando imagen con tag: $IMAGE_TAG"
+            
+            docker compose -f docker-compose.cloud.yml pull
+            docker compose -f docker-compose.cloud.yml up -d --remove-orphans
+            
+            docker image prune -f
+
+  # ------------------------------------------------------------------ Despliegue Continuo (CD) a K3s · main, release y tags
+  deploy-k3s:
+    name: Deploy CD a Kubernetes (K3s)
+    runs-on: ubuntu-latest
+    needs: [build-and-push, provisioning]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release' || startsWith(github.ref, 'refs/tags/'))
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      # El kubeconfig lo extrajo el job provisioning del propio nodo K3s
+      # (artifact kubeconfig-k3s): apunta a la IP pública vigente y autentica
+      # con el certificado de administrador del clúster. El firewall ya permite
+      # el 6443, así que el runner conecta directo con la API sin túnel ni SSH.
+      - uses: actions/download-artifact@v4
+        with:
+          name: kubeconfig-k3s
+          path: /tmp/kubeconfig-artifact
+
+      - name: Configurar acceso al clúster (kubeconfig del provisioning)
+        run: |
+          mkdir -p "$HOME/.kube"
+          install -m600 /tmp/kubeconfig-artifact/kubeconfig "$HOME/.kube/config"
+          echo "KUBECONFIG=$HOME/.kube/config" >> "$GITHUB_ENV"
+
+      - name: Verificar conexión al clúster
+        run: |
+          kubectl cluster-info
+          kubectl get nodes -o wide
+
+      # El mismo tag sha-<7> que publicó build-and-push (type=sha,prefix=sha-).
+      - name: Calcular IMAGE_TAG
+        run: |
+          echo "IMAGE_TAG=sha-$(echo "${{ github.sha }}" | cut -c1-7)" >> "$GITHUB_ENV"
+
+      # Los secrets del repo son PLACEHOLDERS: se aplican UNA sola vez a mano con
+      # valores reales (kubectl apply -f k3s/secrets/). El pipeline no los toca para
+      # no pisar credenciales válidas con los valores de ejemplo.
+      - name: Advertir si faltan los secretos del clúster
+        run: |
+          for s in datos-conexiones secretos-servicios; do
+            if ! kubectl get secret "$s" -n "${{ env.NAMESPACE }}" >/dev/null 2>&1; then
+              echo "::warning::El secret '$s' no existe en el namespace ${{ env.NAMESPACE }}."
+              echo "Aplica Practica10/k3s/secrets/ una sola vez a mano con valores reales antes del primer deploy."
+            fi
+          done
+
+      - name: Aplicar namespace
+        run: kubectl apply -f Practica10/k3s/namespaces/
+
+      - name: Aplicar configmaps
+        run: kubectl apply -f Practica10/k3s/configmaps/
+
+      # envsubst sustituye ${IMAGE_TAG} en cada manifest (rabbitmq/redis usan imágenes
+      # fijas y no tienen variables, así que pasan sin cambio).
+      - name: Aplicar deployments (con IMAGE_TAG sustituido)
+        run: |
+          set -e
+          echo "=== IMAGE_TAG: ${IMAGE_TAG} ==="
+          for f in Practica10/k3s/deployments/*.yaml; do
+            echo "  -> $f"
+            envsubst < "$f" | kubectl apply -f -
+          done
+
+      - name: Aplicar services
+        run: kubectl apply -f Practica10/k3s/services/
+
+      - name: Aplicar ingress
+        run: kubectl apply -f Practica10/k3s/ingress/
+
+      - name: Aplicar monitoreo (Prometheus + Grafana + exporters)
+        run: |
+          kubectl apply -f Practica10/k3s/monitoring/prometheus/
+          kubectl apply -f Practica10/k3s/monitoring/prometheus/exporters/
+          kubectl apply -f Practica10/k3s/monitoring/grafana/
+
+      - name: Esperar rollout de datos (rabbitmq, redis)
+        run: |
+          for deploy in rabbitmq redis; do
+            echo "Esperando rollout de ${deploy}..."
+            kubectl rollout status deployment/${deploy} -n ${{ env.NAMESPACE }} --timeout=180s || {
+              echo "ERROR: Rollout de ${deploy} fallo"
+              kubectl rollout undo deployment/${deploy} -n ${{ env.NAMESPACE }} || true
+              kubectl logs -l app=${deploy} -n ${{ env.NAMESPACE }} --tail=20
+              exit 1
+            }
+          done
+
+      - name: Esperar rollout de microservicios
+        run: |
+          for deploy in auth-service talleres-service reservas-service certificados-service; do
+            echo "Esperando rollout de ${deploy}..."
+            kubectl rollout status deployment/${deploy} -n ${{ env.NAMESPACE }} --timeout=180s || {
+              echo "ERROR: Rollout de ${deploy} fallo"
+              kubectl rollout undo deployment/${deploy} -n ${{ env.NAMESPACE }} || true
+              kubectl logs -l app=${deploy} -n ${{ env.NAMESPACE }} --tail=20
+              exit 1
+            }
+          done
+
+      - name: Esperar rollout de api-gateway
+        run: |
+          echo "Esperando rollout de api-gateway..."
+          kubectl rollout status deployment/api-gateway -n ${{ env.NAMESPACE }} --timeout=180s || {
+            echo "ERROR: Rollout de api-gateway fallo"
+            kubectl rollout undo deployment/api-gateway -n ${{ env.NAMESPACE }} || true
+            kubectl logs -l app=api-gateway -n ${{ env.NAMESPACE }} --tail=20
+            exit 1
+          }
+
+      - name: Esperar rollout de monitoreo
+        run: |
+          for deploy in prometheus grafana; do
+            echo "Esperando rollout de ${deploy}..."
+            kubectl rollout status deployment/${deploy} -n ${{ env.NAMESPACE }} --timeout=180s || {
+              echo "ERROR: Rollout de ${deploy} fallo"
+              kubectl rollout undo deployment/${deploy} -n ${{ env.NAMESPACE }} || true
+              kubectl logs -l app=${deploy} -n ${{ env.NAMESPACE }} --tail=20
+              exit 1
+            }
+          done
+          for ds in node-exporter cadvisor; do
+            echo "Esperando rollout del DaemonSet ${ds}..."
+            kubectl rollout status daemonset/${ds} -n ${{ env.NAMESPACE }} --timeout=180s || {
+              echo "ERROR: Rollout del DaemonSet ${ds} fallo"
+              kubectl logs -l app=${ds} -n ${{ env.NAMESPACE }} --tail=20
+              exit 1
+            }
+          done
+
+      - name: Verificar estado final
+        if: always()
+        run: |
+          echo "=== Pods ==="
+          kubectl get pods -n ${{ env.NAMESPACE }} -o wide
+          echo ""
+          echo "=== Services ==="
+          kubectl get svc -n ${{ env.NAMESPACE }}
+          echo ""
+          echo "=== Ingress ==="
+          kubectl get ingress -n ${{ env.NAMESPACE }}
