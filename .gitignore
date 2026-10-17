@@ -12,6 +12,7 @@ id_rsa*
 id_ed25519*
 *.ppk
 inventory.ini
+.kube
 
 # --- Credenciales de nube (GCP, etc.) ---
 *service-account*.json
@@ -23,6 +24,9 @@ gcloud.json
 .kube/
 kubeconfig
 *.kubeconfig
+# Secretos de despliegue K3s (credenciales reales; los YAML se generan/aplican
+# fuera del commit — ver Practica10/k3s/secrets/ en la máquina)
+k3s/secrets/
 
 # --- Terraform: estado y planes (contienen IPs, dependencias y valores) ---
 .terraform/

@@ -21,6 +21,12 @@ spec:
         app: cadvisor
         app.kubernetes.io/part-of: academix
     spec:
+      # El mount hostPath /var/run va readOnly, y el token del ServiceAccount se
+      # inyecta en /var/run/secrets/kubernetes.io/serviceaccount: kubelet no
+      # podía crear el mountpoint dentro del mount de solo lectura y el contenedor
+      # moría con RunContainerError. cadvisor no habla con la API del clúster,
+      # así que se desactiva la inyección del token y desaparece el conflicto.
+      automountServiceAccountToken: false
       containers:
         - name: cadvisor
           image: gcr.io/cadvisor/cadvisor:v0.55.1

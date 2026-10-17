@@ -8,8 +8,7 @@
 #     (ansible/templates/cluster-issuer.j2, http01 vía ingressClassName nginx).
 #
 # El frontend en Vercel consume este dominio como API_URL.
-# TODO(IaC): el host definitivo lo fija Terraform/Ansible al crear el DNS del nodo
-# (academixk3s.yo-usac.com según ansible/.gitignore); sustituir si cambia.
+# El record A academixk3s.yo-usac.com → IP estática de vm-k3s lo crea Terraform (dns.tf).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -25,10 +24,10 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - academixk3s.yo-usac.com   # TODO(IaC): DNS pendiente de confirmar en Terraform
+        - academixk3s.yo-usac.com
       secretName: api-gateway-tls   # lo crea cert-manager con el cert de Let's Encrypt
   rules:
-    - host: academixk3s.yo-usac.com # TODO(IaC): DNS pendiente de confirmar en Terraform
+    - host: academixk3s.yo-usac.com
       http:
         paths:
           - path: /

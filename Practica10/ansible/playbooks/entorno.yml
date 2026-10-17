@@ -24,21 +24,19 @@
     # ------------------------------------------------------------------
     # vm-development: docker-compose.cloud.yml
     #
-    # El DUEÑO de este archivo es el pipeline (job deploy-vm, appleboy/scp-action)
-    # que entra como {{ ansible_user }}. Por eso:
-    #   owner  -> el scp del pipeline SIEMPRE puede sobreescribirlo (si aquí
-    #             quedara como root daría "permission denied" y el job fallaría);
-    #   force: no -> Ansible solo lo crea si no existe y jamás pisa lo que ya
-    #             puso el pipeline.
+    # Ansible es el dueño del archivo: lo copia desde el repo y puede
+    # sobreescribirlo en cada run (force: yes, el default del módulo copy).
+    # El arranque del stack va al FINAL del playbook, después de copiar
+    # init.sql, porque el Postgres del compose lo monta en
+    # ./infra/postgres/init.sql.
     # ------------------------------------------------------------------
-    - name: Copiar docker-compose.cloud.yml (el dueño es el pipeline)
+    - name: Copiar docker-compose.cloud.yml
       ansible.builtin.copy:
         src: ../../docker-compose.cloud.yml
         dest: "{{ academix_dir }}/docker-compose.cloud.yml"
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
         mode: "0644"
-        force: no
       when: inventory_hostname in groups['desarrollo']
 
     # ------------------------------------------------------------------
@@ -67,3 +65,25 @@
         group: "{{ ansible_user }}"
         mode: "0644"
         force: "{{ inventory_hostname in groups['base_de_datos'] }}"
+
+    # ------------------------------------------------------------------
+    # vm-development: bajar imágenes y levantar el stack de desarrollo.
+    #
+    # Van al FINAL del playbook: init.sql debe estar copiado antes, o el
+    # Postgres del compose montaría un directorio vacío en lugar del
+    # archivo y no crearía las bases.
+    #
+    # --remove-orphans (no existe "--prune" en compose up) barre
+    # contenedores de servicios que ya no están en el compose file.
+    # ------------------------------------------------------------------
+    - name: Bajar las imágenes del compose de desarrollo
+      ansible.builtin.command: docker compose -f docker-compose.cloud.yml pull
+      args:
+        chdir: "{{ academix_dir }}"
+      when: inventory_hostname in groups['desarrollo']
+
+    - name: Levantar el stack de desarrollo (quita huérfanos)
+      ansible.builtin.command: docker compose -f docker-compose.cloud.yml up -d --remove-orphans
+      args:
+        chdir: "{{ academix_dir }}"
+      when: inventory_hostname in groups['desarrollo']

@@ -19,3 +19,8 @@
 
 # 06 · vm-database: PostgreSQL de producción (compose + infra + arranque)
 - import_playbook: playbooks/db.yml
+
+# 07 · vm-production-k3s: manifests de la aplicación (kubectl apply de Practica10/k3s/
+#      con IMAGE_TAG=latest + esperas de rollout). Va AL FINAL: necesita el controlador
+#      de ingress (04) y la BD externa (06) ya desplegados.
+- import_playbook: playbooks/despliegue-k3s.yml

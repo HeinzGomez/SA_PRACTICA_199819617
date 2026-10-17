@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: reservas-service
-          image: ghcr.io/ramirotelles/academix-reservas-service:${IMAGE_TAG}
+          image: ghcr.io/heinzgomez/academix-reservas-service:${IMAGE_TAG}
           ports:
             - containerPort: 8093
               name: http
@@ -69,6 +69,7 @@ spec:
               path: /health
               port: http
             periodSeconds: 5
+            timeoutSeconds: 5          # el default (1s) es demasiado ajustado
             failureThreshold: 36
           readinessProbe:
             httpGet:

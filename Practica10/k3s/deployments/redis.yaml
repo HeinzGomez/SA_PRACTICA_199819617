@@ -62,6 +62,7 @@ spec:
             exec:
               command: ["redis-cli", "ping"]
             periodSeconds: 5
+            timeoutSeconds: 5          # el default (1s) deja poco margen al arrancar
             failureThreshold: 12
           readinessProbe:
             exec:

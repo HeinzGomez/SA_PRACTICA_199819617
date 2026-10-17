@@ -75,6 +75,10 @@ spec:
             exec:
               command: ["rabbitmq-diagnostics", "-q", "check_port_connectivity"]
             periodSeconds: 10
+            # El default del probe es 1s y check_port_connectivity tarda varios
+            # segundos SIEMPRE: sin este timeout el startup probe nunca pasaba,
+            # el pod se reiniciaba cada 5 min y nunca quedaba Ready.
+            timeoutSeconds: 10
             failureThreshold: 30        # hasta 5 min (primera vez crea el nodo Erlang)
           readinessProbe:
             exec:

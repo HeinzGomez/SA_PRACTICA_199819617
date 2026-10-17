@@ -70,9 +70,9 @@ variable "allowed_k3s_api_cidrs" {
 }
 
 variable "allowed_db_cidrs" {
-  description = "Orígenes permitidos para PostgreSQL (5432) en vm-database. Mantener dentro de la VPC (10.10.0.0/16) para que solo las tres VMs accedan; exponerlo a 0.0.0.0/0 dejaría la BD de producción a prueba de contraseñas desde internet."
+  description = "Orígenes permitidos para PostgreSQL (5432) en vm-database. 0.0.0.0/0 para que los pods de K3s se conecten por el DNS público (academxdb.yo-usac.com) sin bloqueos de firewall."
   type        = list(string)
-  default     = ["10.10.0.0/16"]
+  default     = ["0.0.0.0/0"]
 }
 
 variable "telemetry_ports" {
@@ -169,6 +169,18 @@ variable "hostname_k3s" {
   description = "Etiqueta de subdominio que apunta a la IP pública de vm-production-k3s."
   type        = string
   default     = "academixk3s"
+}
+
+variable "hostname_base_de_datos" {
+  description = "Etiqueta de subdominio que apunta a la IP pública de vm-database (usada por K3s)."
+  type        = string
+  default     = "academxdb"
+}
+
+variable "hostname_grafana" {
+  description = "Etiqueta de subdominio de Grafana; se antepone a hostname_k3s (grafana.academixk3s...)."
+  type        = string
+  default     = "grafana"
 }
 
 variable "dns_ttl" {

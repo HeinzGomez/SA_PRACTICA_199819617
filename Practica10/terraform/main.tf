@@ -8,8 +8,10 @@ locals {
 
   sufijo_dns = trimsuffix(data.google_dns_managed_zone.yo_usac.dns_name, ".")
 
-  host_desarrollo = "${var.hostname_desarrollo}.${local.sufijo_dns}"
-  host_k3s        = "${var.hostname_k3s}.${local.sufijo_dns}"
+  host_desarrollo    = "${var.hostname_desarrollo}.${local.sufijo_dns}"
+  host_k3s           = "${var.hostname_k3s}.${local.sufijo_dns}"
+  host_base_de_datos = "${var.hostname_base_de_datos}.${local.sufijo_dns}"
+  host_grafana       = "${var.hostname_grafana}.${local.host_k3s}"
 }
 
 resource "google_project_service" "apis" {

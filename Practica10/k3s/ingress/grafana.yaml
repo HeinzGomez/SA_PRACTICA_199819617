@@ -6,7 +6,8 @@
 # ingressClassName nginx + TLS vía cert-manager (ClusterIssuer letsencrypt-prod
 # instalado por ansible/playbooks/ingress.yml).
 #
-# TODO(IaC): el host se ajusta cuando Terraform defina el DNS del nodo.
+# Host: falta crear el record A grafana.academixk3s.yo-usac.com en Terraform (dns.tf)
+# apuntando a la IP estática de vm-k3s (ver informe: pendiente IaC).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -21,10 +22,10 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - grafana.academixk3s.yo-usac.com   # TODO(IaC): DNS pendiente de confirmar
+        - grafana.academixk3s.yo-usac.com
       secretName: grafana-tls
   rules:
-    - host: grafana.academixk3s.yo-usac.com # TODO(IaC): DNS pendiente de confirmar
+    - host: grafana.academixk3s.yo-usac.com
       http:
         paths:
           - path: /

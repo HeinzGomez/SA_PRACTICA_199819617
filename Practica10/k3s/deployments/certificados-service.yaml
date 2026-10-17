@@ -25,7 +25,7 @@ spec:
     spec:
       containers:
         - name: certificados-service
-          image: ghcr.io/ramirotelles/academix-certificados-service:${IMAGE_TAG}
+          image: ghcr.io/heinzgomez/academix-certificados-service:${IMAGE_TAG}
           ports:
             - containerPort: 8094
               name: http
@@ -68,6 +68,7 @@ spec:
               path: /health
               port: http
             periodSeconds: 5
+            timeoutSeconds: 5          # el default (1s) es demasiado ajustado
             failureThreshold: 36
           readinessProbe:
             httpGet:

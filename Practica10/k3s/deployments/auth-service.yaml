@@ -25,7 +25,7 @@ spec:
     spec:
       containers:
         - name: auth-service
-          image: ghcr.io/ramirotelles/academix-auth-service:${IMAGE_TAG}
+          image: ghcr.io/heinzgomez/academix-auth-service:${IMAGE_TAG}
           ports:
             - containerPort: 8091
               name: http
@@ -75,6 +75,7 @@ spec:
               path: /health
               port: http
             periodSeconds: 5
+            timeoutSeconds: 5          # el default (1s) es demasiado ajustado
             failureThreshold: 36        # bcrypt del seed admin puede tardar
           readinessProbe:
             httpGet:

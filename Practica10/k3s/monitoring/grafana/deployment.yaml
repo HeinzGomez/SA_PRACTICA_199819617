@@ -74,7 +74,7 @@ spec:
               value: "false"
             # Raíz pública detrás del Ingress (TLS de Let's Encrypt vía cert-manager).
             - name: GF_SERVER_ROOT_URL
-              value: "https://grafana.academixk3s.yo-usac.com"   # TODO(IaC): DNS pendiente
+              value: "https://grafana.academixk3s.yo-usac.com"
             - name: GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH
               value: /var/lib/grafana/dashboards/infraestructura.json
           volumeMounts:

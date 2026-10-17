@@ -64,10 +64,9 @@ resource "google_compute_firewall" "k3s_api" {
 }
 
 # PostgreSQL (5432) en vm-database: el backend de K3s (10.10.2.x) lo usa como
-# base de datos del entorno de producción. Solo dentro de la VPC.
-# Nota: la regla "interno" ya permite todo el tráfico 10.10.0.0/16 al tag
-# "academix", así que esta regla es la que documenta la intención y acota a
-# un único puerto en lugar de "todos".
+# base de datos del entorno de producción, conectándose por el DNS público
+# academxdb.yo-usac.com (tráfico que entra por la IP pública), por eso el origen
+# se deja en 0.0.0.0/0 (ver allowed_db_cidrs). Autenticación por contraseña.
 resource "google_compute_firewall" "postgres" {
   name      = "${var.network_name}-allow-postgres"
   network   = google_compute_network.academix.name
