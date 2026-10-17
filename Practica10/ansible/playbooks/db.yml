@@ -80,6 +80,9 @@
       retries: 30
       delay: 5
 
+    # En un arranque desde cero, init.sql se ejecuta durante la PRIMERA
+    # inicialización del volumen de Postgres: reintentar hasta ver las 4 bases
+    # para no fallar si la verificación pilla la ventana de init.
     - name: Verificar que existen las cuatro bases
       ansible.builtin.command: >-
         docker exec {{ db_contenedor }}
@@ -89,6 +92,12 @@
                                 'reservas_db','certificados_db')"
       register: bases
       changed_when: false
+      until: >-
+        bases.rc == 0
+        and (bases.stdout_lines | default([]) | sort)
+            == (db_bases_esperadas | sort)
+      retries: 30
+      delay: 5
       failed_when: >-
         bases.rc != 0
         or (bases.stdout_lines | default([]) | sort)
